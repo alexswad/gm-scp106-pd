@@ -100,12 +100,15 @@ drive.Register("drive_106", {
 			self.Player:SetNoTarget(false)
 			return
 		end
-		for k, prop in pairs(props) do
+		for k, prop in ipairs(props) do
 			local rnorm, rorg = prop:WorldToLocalAngles(vel:Angle()):Forward(), prop:RWTL(org)
 			local rvel = rnorm * vel:Length()
 
+			local max, min = prop:OBBMaxs(), prop:OBBMins()
+			if rorg.x < min.x or rorg.y < min.y or rorg.z < min.z or rorg.x > max.x or rorg.y > max.y or rorg.z > max.z then continue end
+
 			local woff = Vector(0, 0, 32)
-			for _, s in pairs(prop.Phys or {}) do
+			for _, s in ipairs(prop.Phys or {}) do
 				local norm = normal(s.plane[1], s.plane[2], s.plane[3])
 				local worg = rorg + woff
 				local rvel_len = rvel:Length()
@@ -335,7 +338,7 @@ else
 		pd_skybox:DrawModel() 
 		render.SuppressEngineLighting(false)
 
-		for k, v in pairs(ents.FindByClass("s106_*")) do
+		for k, v in ipairs(ents.FindByClass("s106_*")) do
 			if not v.SCP106PD then continue end
 			local max, min = v:OBBMaxs(), v:OBBMins()
 			local rorg = v:RWTL(LocalPlayer():GetPos() + Vector(0, 0, 2))
@@ -372,8 +375,8 @@ else
 		else
 			render.FogColor(3, 17, 12)
 		end
-		render.FogMaxDensity(1)
 		render.FogMode(MATERIAL_FOG_LINEAR)
+		render.FogMaxDensity(1)
 		return true
 	end)
 
