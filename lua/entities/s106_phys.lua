@@ -18,11 +18,14 @@ function ENT:Think()
 		local f = file.Read(self:GetPhysModel(), "GAME")
 		if not f then self.Phys = {} print(self:GetPhysModel()) return end
 		self.Phys = util.JSONToTable(f)
+		local ty = string.Explode("/", self:GetPhysModel())
+		self.PType = ty[#ty]:StripExtension()
+		self[self.PType] = true
 	end
 
 	if SERVER then
 		self:NextThink(CurTime() + 0.1)
-		for k, v in pairs(player.GetAll()) do
+		for k, v in ipairs(player.GetAll()) do
 			if v:GetDrivingMode() ~= util.NetworkStringToID("drive_106") then continue end
 			local rorg = self:RWTL(v:GetPos())
 			local max, min = self:OBBMaxs(), self:OBBMins()
@@ -57,7 +60,9 @@ function ENT:RoomThink(ply, rorg)
 	elseif t == "4hallway" then
 		if rorg:DistToSqr(Vector(0, 0, -184)) > 400 ^ 2 then
 			local rand = math.random(1, 4)
-			if rand == 1 or rand == 2 then
+			if rand == 1 then
+				pd106.TP_Coffins(ply)
+			elseif rand == 2 then
 				pd106.TP_Walkway(ply)
 			elseif rand == 3 then
 				pd106.TP_Fakeout(ply)
@@ -80,8 +85,19 @@ function ENT:RoomThink(ply, rorg)
 			ply.PD106MSG = CurTime() + 0.5
 		end
 	elseif t == "exit" and not ply.ExitingPD then
-		if rorg:DistToSqr(Vector(290.714844, 7.031250, -80.011719)) < 10 ^ 2 then
+		if rorg:DistToSqr(Vector(290.714844, 7.031250, -80.011719)) < 13 ^ 2 then
 			pd106.ExitPD(ply)
+		end
+	elseif t == "coffins" then
+		if rorg:DistToSqr(Vector(205.765625, 182.507812, -169.50000)) < 30 ^ 2 then
+			local rand = math.random(1, 4)
+			if rand == 1 then
+				pd106.TP_8Hallway(ply)
+			elseif rand == 3 or rand == 2 then
+				pd106.TP_Fakeout(ply)
+			elseif rand == 4 then
+				pd106.TP_ThroneRoom(ply)
+			end
 		end
 	end
 end
@@ -110,15 +126,11 @@ end
 local mat = Material("sprites/glow02")
 function ENT:Draw()
 	self:DrawModel()
-	if self.throne or self.throne ~= nil and self:GetPhysModel():find("throneroom") then
+	if self.throneroom then
 		local lookat = (self:RWTL(LocalPlayer():GetPos() + Vector(0, 0, 64)) - Vector(0, -200, 70)):Angle()
 		self:DrawSprite(mat, Vector(0, -200, 70) + lookat:Right() * 2.5, 6)
 		self:DrawSprite(mat, Vector(0, -200, 70) + lookat:Right() * -2.5, 6)
-		self.throne = true
-	else
-		self.throne = false
 	end
-	
 end
 
 function ENT:DrawSprite(mat, pos, size)

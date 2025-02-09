@@ -21,7 +21,7 @@ function ENT:Think()
 		if not SERVER then self:SetRealPos(self:GetParent():GetPos() + Vector(0, 0, 100) + Vector(dir < 0 and 250 * 2 or 0, 0, 0) + Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Forward() * 250) end
 		self:SetPos(self:GetParent():GetPos() + Vector(0, 0, 100) + Vector(dir < 0 and 250 * 2 or 0, 0, 0) + Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Forward() * 250)
 
-		for k, v in pairs(player.GetAll()) do
+		for k, v in ipairs(player.GetAll()) do
 			if SERVER then
 				if v:GetPos():DistToSqr(self:GetPos()) < 85 ^ 2 and v:Alive() then
 					drive.PlayerStopDriving(v)

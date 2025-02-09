@@ -1,3 +1,13 @@
+// fix addons that dont check for valid weapons :(
+local plym = FindMetaTable("Player")
+plym.O_GetActiveWeapon = plym.O_GetActiveWeapon or plym.GetActiveWeapon
+
+function plym:GetActiveWeapon()
+	local res = self:O_GetActiveWeapon()
+	if res == NULL then return game.GetWorld() end
+	return res
+end
+
 // Based off a WIP project called dreams, readdapted to demonstrate the concept in a more familiar way
 // TODO: Optimize everything because this was coded across 10 days in hopes of it just being done
 
@@ -7,6 +17,7 @@ AddCSLuaFile("dreams_106/exit.lua")
 AddCSLuaFile("dreams_106/fakeout.lua")
 AddCSLuaFile("dreams_106/throneroom.lua")
 AddCSLuaFile("dreams_106/walkway.lua")
+AddCSLuaFile("dreams_106/coffins.lua")
 
 local intersectrayplane = util.IntersectRayWithPlane
 local normal = function(c, b, a)
@@ -192,6 +203,7 @@ if SERVER then
 		obstacle:Spawn()
 		create_ent("throneroom", pdoff + Vector(0, -1500, 0))
 		create_ent("exit", pdoff + Vector(-2000, -1500, 500))
+		create_ent("coffins", pdoff + Vector(2000, 1500, 500))
 	end
 
 	function pd106.PutInPD(ply)
@@ -226,6 +238,10 @@ if SERVER then
 		ply:SetPos(pdents["4hallway"]:RLTW(Vector(0, 0, 60)))
 	end
 
+	function pd106.TP_8Hallway(ply)
+		ply:SetPos(pdents["8hallway"]:RLTW(Vector(0, 0, 100)))
+	end
+
 	function pd106.TP_Fakeout(ply)
 		ply:SetPos(pdents["fakeout"]:RLTW(Vector(-230, 0, -50)))
 		ply:SetEyeAngles(pdents["fakeout"]:WorldToLocalAngles(Angle(0, 180, 0)))
@@ -244,6 +260,11 @@ if SERVER then
 	function pd106.TP_Exit(ply)
 		ply:SetPos(pdents["exit"]:RLTW(Vector(-230, 0, -50)))
 		ply:SetEyeAngles(pdents["exit"]:WorldToLocalAngles(Angle(0, 180, 0)))
+	end
+
+	function pd106.TP_Coffins(ply)
+		ply:SetPos(pdents["coffins"]:RLTW(Vector(-290 , 0, -130)))
+		ply:SetEyeAngles(pdents["coffins"]:WorldToLocalAngles(Angle(0, 0, 0)))
 	end
 
 	function pd106.ExitPD(ply)
@@ -364,19 +385,21 @@ else
 		end
 	end)
 
-	// Yes, this is all garbage and quickly done, thanks for noticing
 	hook.Add("SetupWorldFog", "SCPdraw_106_pd_fog", function()
 		//if true then return end
 		if not LocalPlayer():IsDrivingEntity() or LocalPlayer():GetDrivingMode() ~= util.NetworkStringToID("drive_106") then return end
 		render.FogStart(5)
-		render.FogEnd(IsValid(lastroom) and (lastroom.throne or lastroom:GetPhysModel():find("exit")) and 230 or 150)
-		if IsValid(lastroom) and (lastroom.throne or lastroom:GetPhysModel():find("fakeout") or lastroom:GetPhysModel():find("4hallway") or lastroom:GetPhysModel():find("exit"))  then
+		render.FogEnd((IsValid(lastroom) and (lastroom.throneroom or lastroom.exit) and 230) or 150)
+		render.FogMaxDensity(1)
+		if IsValid(lastroom) and (lastroom.throneroom or lastroom.fakeout or lastroom["4hallway"] or lastroom.exit) then
 			render.FogColor(0, 0, 0)
+		elseif IsValid(lastroom) and lastroom.coffins then
+			render.FogEnd(300)
+			render.FogColor(27, 27, 27)
 		else
 			render.FogColor(3, 17, 12)
 		end
 		render.FogMode(MATERIAL_FOG_LINEAR)
-		render.FogMaxDensity(1)
 		return true
 	end)
 
