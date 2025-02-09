@@ -21,7 +21,7 @@ local mat = Material("models/scp106/rooms/puddle")
 function ENT:Draw()
 	self:DrawShadow(false)
 	self:DestroyShadow()
-	local size = math.Clamp(0, 100, (CurTime() - self:GetCreationTime()) * 30)
+	local size = math.Clamp(0, 130, (CurTime() - self:GetCreationTime()) * 32)
 	render.SetMaterial(mat)
 	render.DrawQuadEasy(self:GetPos() + Vector(0, 0, 1), Vector(0, 0, 1), size, size, color_white, 0)
 end
