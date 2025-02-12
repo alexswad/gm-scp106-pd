@@ -9,10 +9,6 @@ ENT.Author = "eskil"
 ENT.RenderGroup = RENDERGROUP_OPAQUE
 ENT.SCP106PD = true
 
-local normal = function(c, b, a)
-	return ((b - a):Cross(c - a)):GetNormalized()
-end
-
 function ENT:Think()
 	if self:GetPhysModel() ~= "" and not self.Phys then
 		local f = file.Read(self:GetPhysModel(), "GAME")
