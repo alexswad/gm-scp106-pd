@@ -51,8 +51,8 @@ end
 
 if CLIENT then
 	timer.Simple(3, function()
-		if Dreams then return end
-		Derma_Query("SCP-106 Pocket Dimension now requires the Dreams Module to function, would you like to open the workshop page?", "SCP-106 PD", "Open Workshop Page", 
-		function() gui.OpenURL("https://steamcommunity.com/sharedfiles/filedetails/?id=3430729756") end, "Ignore for now", function() end)
+		if Dreams or not LocalPlayer():IsListenServerHost() then return end
+		Derma_Query("SCP-106 Pocket Dimension requires the DREAMS Module to function, would you like to open the workshop page?", "SCP-106 PD", "Download Now",
+		function() gui.OpenURL("https://steamcommunity.com/sharedfiles/filedetails/?id=3430729756") end, "Remind me later", function() end)
 	end)
 end

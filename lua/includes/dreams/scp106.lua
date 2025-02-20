@@ -332,6 +332,7 @@ if SERVER then
 	end
 else
 	function DREAMS:Start(ply)
+		Dreams.Meta.Start(self, ply)
 		RunConsoleCommand("stopsound")
 
 		timer.Simple(0.2, function()
@@ -340,6 +341,7 @@ else
 	end
 
 	function DREAMS:End(ply)
+		Dreams.Meta.End(self, ply)
 		ply:StopSound("scp106pd/ambience.wav")
 	end
 
