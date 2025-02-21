@@ -24,7 +24,8 @@ pd106.class_106 = class_106
 
 hook.Add("EntityTakeDamage", "SCP106_PD", function(ply, dmg)
 	local attacker = IsValid(dmg:GetAttacker()) and dmg:GetAttacker() or dmg:GetInflictor()
-	if not IsValid(ply) or not IsValid(attacker) or not class_106[attacker:GetClass()] or not ply:IsPlayer() then return end
+	if not IsValid(ply) or not IsValid(attacker) or not class_106[attacker:GetClass()] or not (ply:IsPlayer() or ply:IsNPC()) then return end
+	if ply:IsNPC() then pd106.PutNPCInPD(ply) return true end
 	if ply:IsDreaming() then return true end
 
 	pd106.PutInPD(ply)
@@ -48,7 +49,9 @@ function pd106.PutInPD(ply, puddle)
 	SafeRemoveEntityDelayed(puddle, 60 * 5)
 
 	local start, time = ply:GetPos(), CurTime()
-	timer.Create(ply:SteamID() .. "_106PD", 0, 0, function()
+	local name = ply:SteamID() .. "_106PD"
+	timer.Create(name, 0, 0, function()
+		if not IsValid(ply) then return end
 		ply:SetMoveType(MOVETYPE_FLY)
 		ply:Freeze(true)
 		ply:SetPos(start - Vector(0, 0, 40 * (CurTime() - time)))
@@ -56,7 +59,8 @@ function pd106.PutInPD(ply, puddle)
 	end)
 
 	timer.Simple(2, function()
-		timer.Remove(ply:SteamID() .. "_106PD")
+		timer.Remove(name)
+		if not IsValid(ply) then return end
 		ply:SetDream("scp106")
 
 		timer.Simple(0.1, function()
@@ -64,6 +68,33 @@ function pd106.PutInPD(ply, puddle)
 		end)
 	end)
 end
+
+function pd106.PutNPCInPD(ent, puddle)
+	if timer.Exists(ent:EntIndex() .. "_106PD") then return end
+	ent:EmitSound("scp106pd/corrision.wav")
+	if not puddle then
+		puddle = ents.Create("ent_106pd_puddle")
+		puddle:SetPos(ent:GetPos())
+		puddle:Spawn()
+	end
+
+	ent:SetMoveType(MOVETYPE_NONE)
+	SafeRemoveEntityDelayed(puddle, 60 * 5)
+
+	local start, time = ent:GetPos(), CurTime()
+	local name = ent:EntIndex() .. "_106PD"
+	timer.Create(name, 0, 0, function()
+		if not IsValid(ent) then return end
+		ent:SetPos(start - Vector(0, 0, 40 * (CurTime() - time)))
+		ent:SetAbsVelocity(vector_origin)
+	end)
+
+	timer.Simple(3, function()
+		timer.Remove(name)
+		SafeRemoveEntity(ent)
+	end)
+end
+
 
 function pd106.ExitPD(ply)
 	if timer.Exists(ply:SteamID() .. "_106PD") then return end
@@ -81,7 +112,9 @@ function pd106.ExitPD(ply)
 		ent.Closing = true
 	end
 
-	timer.Create(ply:SteamID() .. "_106PD", 0, 0, function()
+	local name = ply:SteamID() .. "_106PD"
+	timer.Create(name, 0, 0, function()
+		if not IsValid(ply) then return end
 		ply:SetMoveType(MOVETYPE_FLY)
 		ply:Freeze(true)
 		ply:SetPos(start + Vector(0, 0, 40 * (CurTime() - time)))
@@ -89,7 +122,8 @@ function pd106.ExitPD(ply)
 	end)
 
 	timer.Simple(2, function()
-		timer.Remove(ply:SteamID() .. "_106PD")
+		timer.Remove(name)
+		if not IsValid(ply) then return end
 		ply:Freeze(false)
 		ply:SetMoveType(MOVETYPE_WALK)
 	end)

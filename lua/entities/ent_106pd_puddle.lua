@@ -18,13 +18,15 @@ function ENT:Initialize()
 	if SERVER then
 		self:DropToFloor()
 		self:SetSolid(SOLID_BBOX)
+		self:SetCollisionGroup(COLLISION_GROUP_WORLD)
 		self:SetTrigger(true)
-		self:SetCollisionBounds(Vector(-4, -4, -1), Vector(4, 4, 2))
+		self:SetCollisionBounds(Vector(-4, -4, -1), Vector(4, 4, 5))
 	end
 end
 
 function ENT:StartTouch(ply)
-	if self.Closing or not ply:IsPlayer() then return end
+	if self.Closing or not ply:IsPlayer() and not ply:IsNPC() then return end
+	if ply:IsNPC() then pd106.PutNPCInPD(ply, self) return end
 	pd106.PutInPD(ply, self)
 end
 
