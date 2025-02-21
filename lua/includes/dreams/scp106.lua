@@ -181,7 +181,7 @@ local mat = Material("sprites/glow02")
 local sprite_offset = Vector(0, -200, 70)
 local pd_skybox, pd_obstacle
 function DREAMS:Draw(ply)
-	Dreams.Meta.Draw(self)
+	Dreams.Meta.Draw(self, ply)
 
 	if not IsValid(pd_skybox) then
 		pd_skybox = ClientsideModelSafe("models/scp106/rooms/skybox.mdl")
