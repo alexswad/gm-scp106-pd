@@ -26,7 +26,7 @@ end
 
 function ENT:StartTouch(ply)
 	if self.Closing or not ply:IsPlayer() and not ply:IsNPC() then return end
-	if ply:IsNPC() then pd106.PutNPCInPD(ply, self) return end
+	if ply:IsNPC() and not pd106.class_106[ply:GetClass()] then pd106.PutNPCInPD(ply, self) return end
 	pd106.PutInPD(ply, self)
 end
 
