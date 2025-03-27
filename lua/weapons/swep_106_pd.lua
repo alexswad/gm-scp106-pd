@@ -1,11 +1,11 @@
 AddCSLuaFile()
 
-SWEP.PrintName = "SCP-106(PD)[wip]"
+SWEP.PrintName = "SCP-106(PD)"
 SWEP.Category = "SCP"
 SWEP.Spawnable = false
 SWEP.AdminOnly = true
 SWEP.Author = "eskill"
-SWEP.Purpose = "Left - Send player to PD / Attack\nRight click - Teleport In/Out of PD\nR - Laught"
+SWEP.Purpose = "Left - Send player to PD / Attack\nRight click - Teleport In/Out of PD\nR - Laugh"
 SWEP.DisableDuplicator = true
 SWEP.Primary.ClipSize = -1
 SWEP.Primary.DefaultClip = -1
@@ -30,13 +30,14 @@ function SWEP:PrimaryAttack()
 	if CLIENT then return end
 
 	local owner = self:GetOwner()
-	local tr = owner:GetEyeTraceNoCursor()
+	local tr = owner:GetEyeTraceNoCursor(), tr.Entity
 	local ent = tr.Entity
 	if not IsValid(tr.Entity) or not (ent:IsPlayer() or ent:IsNPC()) or tr.HitPos:DistToSqr(owner:EyePos()) > 80 ^ 2 then return end
 
+	
 	if not ent:IsPlayer() or ent:IsDreaming() then
 		ent:TakeDamage(80, owner, self)
-		self:SetNextPrimaryFire(CurTime() + 4)
+		self:SetNextPrimaryFire(CurTime() + 2)
 	else
 		self:SetNextPrimaryFire(CurTime() + 2)
 		pd106.PutInPD(ent)

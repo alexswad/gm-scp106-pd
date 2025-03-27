@@ -8,6 +8,7 @@
 		"*.vcproj",
 		"*.svn*",
 		"*.png",
-		".git/*"
+		".git/*",
+		"source_maps/*"
 	]
 }

@@ -19,6 +19,9 @@ local class_106 = {
 	["drg_uescp106b2"] = true,
 	["106"] = true,
 	["npc_cpt_scpunity_106"] = true,
+	["dughoo_scpcb_106"] = true,
+	["drg_dughoo_old106"] = true,
+	["dughoo_scpsl_scp106"] = true,
 }
 pd106.class_106 = class_106
 
@@ -56,6 +59,7 @@ function pd106.PutInPD(ply, puddle)
 		ply:Freeze(true)
 		ply:SetPos(start - Vector(0, 0, 40 * (CurTime() - time)))
 		ply:SetAbsVelocity(vector_origin)
+		ply:SetNoTarget(true)
 	end)
 
 	timer.Simple(2, function()
@@ -131,7 +135,6 @@ end
 
 
 local function add(mdl, offset, tp_pos, tp_ang, lighting)
-	offset = offset + Vector(0, 50000, -50000)
 	local room = DREAMS:AddRoom(mdl, "models/scp106/rooms/" .. mdl .. ".mdl", "models/scp106/rooms/" .. mdl .. "_dream.phy", offset)
 	room.tp_pos = tp_pos
 	room.tp_ang = tp_ang
