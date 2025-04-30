@@ -135,7 +135,7 @@ end
 
 
 local function add(mdl, offset, tp_pos, tp_ang, lighting)
-	local room = DREAMS:AddRoom(mdl, "models/scp106/rooms/" .. mdl .. ".mdl", "models/scp106/rooms/" .. mdl .. "_dream.phy", offset)
+	local room = DREAMS:AddRoom(mdl, "models/scp106/rooms/" .. mdl .. ".mdl", "data_static/dreams/106/" .. mdl .. ".dat", offset)
 	room.tp_pos = tp_pos
 	room.tp_ang = tp_ang
 	room.MdlLighting = lighting
