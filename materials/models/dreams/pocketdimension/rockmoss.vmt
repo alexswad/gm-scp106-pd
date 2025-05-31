@@ -1,0 +1,7 @@
+"vertexlitgeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/rockmoss"
+	//"$bumpmap" "models/dreams/pocketdimension/rockmossbump"
+	"$surfaceprop" "concrete"
+
+}

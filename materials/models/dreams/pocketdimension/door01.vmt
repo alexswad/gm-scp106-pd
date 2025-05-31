@@ -1,0 +1,5 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/door01"
+	"$surfaceprop" "Metal"
+}

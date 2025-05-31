@@ -1,0 +1,6 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/concretewall"
+	"$bumpmap" "models/dreams/pocketdimension/concretewallbump"
+	"$surfaceprop" "Concrete"
+}

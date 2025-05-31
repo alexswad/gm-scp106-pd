@@ -1,0 +1,5 @@
+"VertexLitGeneric"
+{
+    $basetexture "scp106\pd_plane"
+	$alphatest "1"
+}

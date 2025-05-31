@@ -1,0 +1,7 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/vent"
+	"$surfaceprop" "metalgrate"
+	//$selfillum	"1"
+	//$selfillummask "models/scp/map/minlight"
+}

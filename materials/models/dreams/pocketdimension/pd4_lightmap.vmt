@@ -1,0 +1,7 @@
+"Modulate"
+{
+	"$basetexture"	"models/dreams/pocketdimension/pd4_lightmap"
+//	$translucent	1
+	$decal		1
+	$mod2x		1
+}

@@ -1,0 +1,7 @@
+"vertexlitgeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/pdwall"
+	"$surfaceprop" "concrete"
+	$selfillum	"1"
+	$selfillummask "models/dreams/pocketdimension/minlight"
+}

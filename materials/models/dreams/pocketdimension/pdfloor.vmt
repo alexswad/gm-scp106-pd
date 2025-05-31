@@ -1,0 +1,7 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/pdfloor"
+	"$surfaceprop" "Concrete"
+	$selfillum	"1"
+	$selfillummask "models/dreams/pocketdimension/minlight"
+}

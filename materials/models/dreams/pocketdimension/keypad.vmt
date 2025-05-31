@@ -1,0 +1,7 @@
+"VertexlitGeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/keypad"
+	"$surfaceprop" "Metal"
+	$selfillum	"1"
+	$selfillummask "models/dreams/pocketdimension/minlight"
+}

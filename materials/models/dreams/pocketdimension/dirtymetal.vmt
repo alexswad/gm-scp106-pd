@@ -1,0 +1,6 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/dreams/pocketdimension/dirtymetal"
+	"$bumpmap" "models/dreams/pocketdimension/dirtymetalbump"
+	"$surfaceprop" "metal"
+}

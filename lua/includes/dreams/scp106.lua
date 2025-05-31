@@ -4,160 +4,167 @@ local math_abs = math.abs
 local IsValid = IsValid
 local Vector = Vector
 
-if not DREAMS then // autorefresh fix
+if not DREAMS then -- autorefresh fix
 	Dreams.LoadDreams()
 	return
 end
 
-pd106 = {}
+DREAMS.Marks = {}
+DREAMS.Triggers = {}
+DREAMS.Entities = {}
+DREAMS.StartMove = DREAMS.StartMoveFly
 
-local class_106 = {
-	["npc_cpt_scp_106_old"] = true,
-	["npc_cpt_scp_106"] = true,
-	["npc_106"] = true,
-	["drg_uescp106ver2"] = true,
-	["drg_uescp106b2"] = true,
-	["106"] = true,
-	["npc_cpt_scpunity_106"] = true,
-	["dughoo_scpcb_106"] = true,
-	["drg_dughoo_old106"] = true,
-	["dughoo_scpsl_scp106"] = true,
-}
-pd106.class_106 = class_106
-
-hook.Add("EntityTakeDamage", "SCP106_PD", function(ply, dmg)
-	local attacker = IsValid(dmg:GetAttacker()) and dmg:GetAttacker() or dmg:GetInflictor()
-	if not IsValid(ply) or not IsValid(attacker) or not class_106[attacker:GetClass()] or not (ply:IsPlayer() or ply:IsNPC()) then return end
-	if ply:IsNPC() then pd106.PutNPCInPD(ply) return true end
-	if ply:IsDreaming() then return true end
-
-	pd106.PutInPD(ply)
-	return true
-end)
-
-function pd106.PutInPD(ply, puddle)
-	if ply:IsDreaming() or timer.Exists(ply:SteamID() .. "_106PD") then return end
-	ply:EmitSound("scp106pd/corrision.wav")
-	if not puddle then
-		puddle = ents.Create("ent_106pd_puddle")
-		puddle:SetPos(ply:GetPos())
-		puddle:Spawn()
+function DREAMS:StartMove(ply, mv, cmd)
+	local speed
+	if ply.DreamRoom.name == "pd4" then
+		speed = 7
 	end
-	ply.PDOutPos = ply:GetPos()
-	ply.PDOutPuddle = puddle
-
-	ply:SetMoveType(MOVETYPE_FLY)
-	ply:Freeze(true)
-
-	SafeRemoveEntityDelayed(puddle, 60 * 5)
-
-	local start, time = ply:GetPos(), CurTime()
-	local name = ply:SteamID() .. "_106PD"
-	timer.Create(name, 0, 0, function()
-		if not IsValid(ply) then return end
-		ply:SetMoveType(MOVETYPE_FLY)
-		ply:Freeze(true)
-		ply:SetPos(start - Vector(0, 0, 40 * (CurTime() - time)))
-		ply:SetAbsVelocity(vector_origin)
-		ply:SetNoTarget(true)
-	end)
-
-	timer.Simple(2, function()
-		timer.Remove(name)
-		if not IsValid(ply) then return end
-		ply:SetDream("scp106")
-
-		timer.Simple(0.1, function()
-			ply:Freeze(false)
-		end)
-	end)
+	Dreams.Meta.StartMove(self, ply, mv, cmd, speed)
 end
 
-function pd106.PutNPCInPD(ent, puddle)
-	if timer.Exists(ent:EntIndex() .. "_106PD") then return end
-	ent:EmitSound("scp106pd/corrision.wav")
-	if not puddle then
-		puddle = ents.Create("ent_106pd_puddle")
-		puddle:SetPos(ent:GetPos())
-		puddle:Spawn()
+local function add(mdl, offset, mdl_lighting, lighting)
+	local room = DREAMS:AddRoom(mdl, nil, "data/dreams/" .. mdl .. ".dat", offset)
+	room.MdlLighting = mdl_lighting or lighting
+	room.Lighting = lighting
+	table.Merge(DREAMS.Marks, room.marks or {})
+	table.Merge(DREAMS.Triggers, room.triggers or {})
+	table.Merge(DREAMS.Entities, room.entities or {})
+	return room
+end
+
+add("pd1", vector_origin)
+add("pd2", Vector(3000, 3000, 10))
+add("pd3", Vector(-2500, -3000, -1400), nil, {0.1, 0.2, 0.1})
+add("pd4", Vector(1500, -3000))
+
+DREAMS.MoveSpeed = 50
+DREAMS.ShiftSpeed = 130
+DREAMS.JumpPower = 50
+DREAMS.Gravity = 500
+DREAMS.Debug = 1
+
+
+function DREAMS:CalcObstaclePos1()
+	local d = CurTime() * 120 % 720
+	local dir = d > 360 and -1 or 1
+	return self.Marks["obs1"].pos + Vector(dir < 0 and 170 * 2 or 0, 0, 0) + Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Forward() * 170
+end
+
+function DREAMS:CalcObstaclePos2()
+	local d = CurTime() * 120 % 720
+	local dir = d > 360 and -1 or 1
+	return self.Marks["obs2"].pos + Vector(0, dir < 0 and 170 * 2 or 0, 0) - Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Right() * 170
+end
+
+local dist = 5000
+local b_eye, v_eye
+function DREAMS:CalcPlane()
+	local d = CurTime() * 20 % 720
+	local t = CurTime() * 20 % 360
+	local dir = d > 360 and -1 or 1
+	b_eye = math_abs(t / 360 * dist - dist / 2) < 1600
+	v_eye = Vector((-dist / 2 + dist * t / 360) * dir, 0, 250) + self.Rooms["pd4"].offset
+	return v_eye, dir, b_eye
+end
+
+function DREAMS:CalcPD1Eyes()
+	local t = CurTime() * 20 % 360
+	return self.Marks["pd_8center"].pos + Angle(0, t, 80):Forward() * 900
+end
+
+
+----------------------------------------------------
+function DREAMS:Teleport(ply, mark)
+	mark = self.Marks[mark]
+	ply:SetDreamPos(mark.pos)
+	if mark.angles then
+		ply:SetEyeAngles(mark.angles)
+	end
+end
+
+function DREAMS:InTrigger(ply, trigger)
+	local tbl = self.Triggers[trigger]
+	if not tbl then return false end
+	local pos = ply:GetDreamPos()
+	if not tbl.phys.AA then
+		for k, v in ipairs(tbl.phys) do
+			if pos:WithinAABox(v.AA, v.BB) then return true end
+		end
+		return false
+	else
+		return pos:WithinAABox(tbl.phys.AA, tbl.phys.BB)
+	end
+end
+
+function DREAMS:SetupDataTables()
+	self:NetworkVar("Float", 0, "Door1Open")
+	self:NetworkVar("Float", 1, "Door2Open")
+end
+
+if SERVER then
+	function DREAMS:ThinkSelf()
+		if self:GetDoor1Open(0) ~= 0 and CurTime() - self:GetDoor1Open(0) > 2 then
+			self.Entities["door1"].phys.Disabled = true
+		else
+			self.Entities["door1"].phys.Disabled = nil
+		end
+
+		if self:GetDoor2Open(0) ~= 0 and CurTime() - (self:GetDoor2Open(CurTime() + 1)) > 2 then
+			self.Entities["door2"].phys.Disabled = true
+		else
+			self.Entities["door2"].phys.Disabled = nil
+		end
 	end
 
-	ent:SetMoveType(MOVETYPE_NONE)
-	SafeRemoveEntityDelayed(puddle, 60 * 5)
+	function DREAMS:Think(ply)
+		local room = ply.DreamRoom
+		local name = room.name
+		local pos = ply:GetDreamPos()
+		if name == "pd1" and pos:DistToSqr(self.Marks["pd_8center"].pos) > 360 ^ 2 then
+			math.randomseed(ply:Health() + CurTime())
+			local rand = math.random(1, 10)
+			if rand == 1 then
+				self:Teleport(ply, "pd_exit")
+			elseif rand == 2 or rand == 3 then
+				self:Teleport(ply, "pd_trick")
+			elseif rand == 4 or rand == 5 or rand == 7 then
+				self:Teleport(ply, "pd_4hallway")
+			elseif rand == 6 or rand == 8 or rand == 10 then
+				self:Teleport(ply, "pd_pillars")
+			elseif rand == 9 then
+				ply:Kill()
+			end
+		elseif name == "pd2" then
 
-	local start, time = ent:GetPos(), CurTime()
-	local name = ent:EntIndex() .. "_106PD"
-	timer.Create(name, 0, 0, function()
-		if not IsValid(ent) then return end
-		ent:SetPos(start - Vector(0, 0, 40 * (CurTime() - time)))
-		ent:SetAbsVelocity(vector_origin)
-	end)
+		elseif name == "pd3" then
 
-	timer.Simple(3, function()
-		timer.Remove(name)
-		SafeRemoveEntity(ent)
-	end)
-end
-
-
-function pd106.ExitPD(ply)
-	if timer.Exists(ply:SteamID() .. "_106PD") then return end
-	ply:EmitSound("scp106pd/decay.wav")
-
-	ply:SetMoveType(MOVETYPE_FLY)
-	ply:Freeze(true)
-	ply:SetDream(0)
-
-	local start, time = (ply.PDOutPos or ply:GetPos()) - Vector(0, 0, 65), CurTime()
-	local ent = ply.PDOutPuddle
-	if IsValid(ent) then
-		ent:SetClosing(CurTime())
-		SafeRemoveEntityDelayed(ent, 15)
-		ent.Closing = true
+		elseif name == "pd4" then
+			
+		end
 	end
 
-	local name = ply:SteamID() .. "_106PD"
-	timer.Create(name, 0, 0, function()
-		if not IsValid(ply) then return end
-		ply:SetMoveType(MOVETYPE_FLY)
-		ply:Freeze(true)
-		ply:SetPos(start + Vector(0, 0, 40 * (CurTime() - time)))
-		ply:SetAbsVelocity(vector_origin)
-	end)
-
-	timer.Simple(2, function()
-		timer.Remove(name)
-		if not IsValid(ply) then return end
-		ply:Freeze(false)
-		ply:SetMoveType(MOVETYPE_WALK)
-	end)
+	function DREAMS:KeyPress(ply, key)
+		if key == IN_USE then
+			local _, _, _, solid, _ = Dreams.Lib.TraceRayPhys(ply.DreamRoom.phys, ply:GetDreamPos() + Vector(0, 0, 64), ply:EyeAngles():Forward(), 50)
+			if solid and solid.Entity then
+				if solid.Entity.name == "door2_button" and self:GetDoor2Open(0) == 0 then
+					self:SetDoor2Open(CurTime())
+				elseif solid.Entity.name == "door1_button" and self:GetDoor1Open(0) == 0 then
+					self:SetDoor1Open(CurTime())
+				end
+			end
+		end
+	end
 end
 
-
-local function add(mdl, offset, tp_pos, tp_ang, lighting)
-	local room = DREAMS:AddRoom(mdl, "models/scp106/rooms/" .. mdl .. ".mdl", "data_static/dreams/106/" .. mdl .. ".dat", offset)
-	room.tp_pos = tp_pos
-	room.tp_ang = tp_ang
-	room.MdlLighting = lighting
-end
-
-add("8hallway", vector_origin, Vector(0, 0, 100), nil, {0.1, 0.15, 0.1})
-add("4hallway", Vector(-1500, 0, 0), Vector(0, 0, 60), nil, {0.4, 0.35, 0.35})
-add("fakeout", Vector(-700, 1650, 500), Vector(-230, 0, -50), Angle(0, 180, 0), {0.8, 0.2, 0.2})
-add("throneroom", Vector(0, -1500, 0), Vector(0, 150, -140), Angle(0, 270, 0), {1, 0.2, 0.2})
-add("exit", Vector(-2000, -1500, 500), Vector(-230, 0, -50), Angle(0, 180, 0), {0.7, 0.4, 0.4})
-add("coffins", Vector(2000, 1500, 500), Vector(-290 , 0, -130), Angle(0, 0, 0), {0.4, 0.4, 0.4})
-add("walkway", Vector(0, 1600, 0), Vector(-1150, 30, 100), Angle(0, 0, 0), {0.4, 0.5, 0.4})
-
-DREAMS.MoveSpeed = 10
-DREAMS.ShiftSpeed = 10
-DREAMS.JumpPower = 200
-DREAMS.Gravity = 600
+--------------------------------------------
+if SERVER then return end
 
 local bob = 0
 local bd = false
 
 local height = Vector(0, 0, 64)
+local theight = Vector(0, 0, 48)
 function DREAMS:CalcView(ply, view)
 	local ang = ply:EyeAngles()
 	local cos = math_cos(bob)
@@ -165,7 +172,7 @@ function DREAMS:CalcView(ply, view)
 	ang:RotateAroundAxis(ang:Right(), 0.2 + cos2 * 0.8)
 	ang:RotateAroundAxis(ang:Forward(), cos * 4)
 	local vel = ply:GetVelocity()
-	if math_abs(vel.z) < 1 then
+	if math_abs(vel.z) < 100 then
 		bob = (bob + Vector(vel.x, vel.y, 0):Length() * FrameTime() / 35) % 6
 		if bob % 3 < 0.1 and not bd then
 			bd = bob + 0.1
@@ -177,236 +184,163 @@ function DREAMS:CalcView(ply, view)
 		bob = bob - bob * 0.2
 	end
 	view.angles = ang
-	view.origin = ply:GetDreamPos() + height
+	if ply.DreamRoom.name == "pd4" then
+		if b_eye and not self:InTrigger(ply, "safezone") then ply:SetEyeAngles((v_eye - ply:GetDreamPos()):Angle()) end
+		view.origin = ply:GetDreamPos() + theight
+	else
+		view.origin = ply:GetDreamPos() + height
+	end
 end
 
+function DREAMS:DrawSprite(mats, pos, size)
+	local fog = render.GetFogMode()
+	render.FogMode(MATERIAL_FOG_NONE)
+	render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD )
+	render.SetMaterial(mats)
+	render.DrawSprite(pos, size, size, color_white)
+	render.OverrideBlend(false)
+	render.FogMode(fog)
+end
+
+local pd_skybox
 local mat = Material("sprites/glow02")
-local sprite_offset = Vector(0, -200, 70)
-local pd_skybox, pd_obstacle
-function DREAMS:Draw(ply)
-	Dreams.Meta.Draw(self, ply)
-
+local plane = Material("scp106/pd_plane")
+local plane_eye = Material("scp106/pd_planeeye")
+local plane_eye_middle = Material("scp106/pd_planeeye_middle")
+function DREAMS:Draw(ply, rt)
 	if not IsValid(pd_skybox) then
-		pd_skybox = ClientsideModelSafe("models/scp106/rooms/skybox.mdl")
+		pd_skybox = ClientsideModelSafe("models/dreams/skybox.mdl")
 		pd_skybox:SetNoDraw(true)
-		pd_skybox:SetModelScale(-4)
-	end
-
-	if not IsValid(pd_obstacle) then
-		pd_obstacle = ClientsideModelSafe("models/scp106/rooms/obstacle.mdl")
-		pd_obstacle:SetNoDraw(true)
-		pd_obstacle:SetModelScale(0.8)
+		pd_skybox:SetModelScale(-10)
 	end
 
 	render.SuppressEngineLighting(true)
 	pd_skybox:SetPos(ply:GetDreamPos() + Vector(0, 0, 64))
 	pd_skybox:DrawModel()
-
-	local obs = self:CalcObstaclePos()
-	self.ObsPos = obs
-	pd_obstacle:SetPos(self.Rooms["walkway"].offset + obs)
-	pd_obstacle:DrawModel()
 	render.SuppressEngineLighting(false)
 
-	local room = ply.DreamRoom
-	if not room or room.name ~= "throneroom" then return end
+	Dreams.Meta.Draw(self, ply, rt)
+	if ply.DreamRoom.name == "pd1" then
+		local pos = self:CalcPD1Eyes() + Vector(0, 0, 60)
+		local lookat = ((ply:GetDreamPos() + height) - pos):Angle()
+		self:DrawSprite(mat, pos + lookat:Right() * 4, 10)
+		self:DrawSprite(mat, pos + lookat:Right() * -4, 10)
+	elseif self:InTrigger(ply, "throneroom") then
+		local pos = self.Marks["pd_eyes"].pos
+		local lookat = ((ply:GetDreamPos() + height) - pos):Angle()
+		self:DrawSprite(mat, pos + lookat:Right() * 2.5, 7)
+		self:DrawSprite(mat, pos + lookat:Right() * -2.5, 7)
+	elseif ply.DreamRoom.name == "pd4" then
+		local fog = render.GetFogMode()
+		render.FogMode(MATERIAL_FOG_NONE)
+		local pos, dir, eye = self:CalcPlane()
+		render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_MIN, BLEND_SRC_COLOR, BLEND_DST_COLOR, BLENDFUNC_MAX )
+		render.SetMaterial(eye and plane_eye or plane)
+		render.DrawQuadEasy(pos, Vector(0, 0, -1), 5000, 5000, Color(255, 255, 255), dir == -1 and 0 or 180)
+		render.SetMaterial(plane_eye_middle)
+		render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD )
+		if eye then render.DrawQuadEasy(pos, Vector(0, 0, -1), 5000, 5000, Color(255, 255, 255), dir == -1 and 0 or 180) end
+		render.OverrideBlend(false)
+		render.FogMode(fog)
+	end
 
-	local lookat = ((ply:GetDreamPos() + height) - (room.offset + sprite_offset)):Angle()
-	self:DrawSprite(mat, room.offset + sprite_offset + lookat:Right() * 2.5, 40)
-	self:DrawSprite(mat, room.offset + sprite_offset + lookat:Right() * -2.5, 40)
+	DrawMotionBlur(0.1, 0.5, 0.08)
 end
 
 local flicker
+local kneel = Material("scp106/kneel")
 function DREAMS:DrawHUD(ply, w, h)
 	if flicker and flicker > CurTime() then
 		surface.SetDrawColor(0, 0, 0, 255 * ((flicker + 0.4) - CurTime()))
 		surface.DrawRect(0, 0, ScrW(), ScrH())
 	end
+
+	if self:InTrigger(ply, "throneroom") then
+		local time = CurTime() % 10
+		if time > 1 and time < 1.12 then
+			surface.SetDrawColor(0, 0, 0)
+			surface.DrawRect(0, 0, ScrW(), ScrH())
+			render.SetMaterial(kneel)
+			render.DrawScreenQuadEx(-10, -50, ScrW() / 1.5, ScrH() / 1.5)
+		elseif time > 1.14 and time < 1.22 then
+			surface.SetDrawColor(0, 0, 0)
+			surface.DrawRect(0, 0, ScrW(), ScrH())
+			render.SetMaterial(kneel)
+			render.DrawScreenQuadEx(ScrW() / 3, ScrH() / 3, ScrW() / 1.5, ScrH() / 1.5)
+		elseif time > 1.25 and time < 1.36 then
+			render.SetMaterial(kneel)
+			render.DrawScreenQuad()
+		end
+	end
 	Dreams.Meta.DrawHUD(self, ply, w, h)
 end
 
-function DREAMS:CalcObstaclePos()
-	local d = CurTime() * 150 % 720
-	local dir = d > 360 and -1 or 1
-	return Vector(0, 0, 100) + Vector(dir < 0 and 250 * 2 or 0, 0, 0) + Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Forward() * 250
+function DREAMS:CalcDoorSeq(prop, num)
+	local mdl = prop.CMDL
+	local cnum = (CurTime() - num) / 2.5
+	if num > 0 then
+		if not prop.playedsound then
+			prop.playedsound = true
+			LocalPlayer():EmitSound("scp106pd/dooropen3.wav", 100, 90, math.Clamp(50 ^ 2 / prop.origin:DistToSqr(LocalPlayer():GetDreamPos()), 0, 0.8))
+		end
+
+		mdl:SetSequence("open")
+		mdl:SetCycle(cnum)
+		if cnum > 0.8 then
+			prop.phys.Disabled = true
+		end
+	else
+		mdl:SetSequence("closed")
+		prop.phys.Disabled = false
+		prop.playedsound = false
+	end
+end
+
+function DREAMS:RenderProps(props)
+	for a, b in ipairs(props) do
+		self:DrawPropModel(b)
+		if b.name == "door1_prop" then
+			b.phys = b.phys or self.Entities["door1"].phys
+			self:CalcDoorSeq(b, self:GetDoor1Open(0))
+		elseif b.name == "door2_prop" then
+			b.phys = b.phys or self.Entities["door2"].phys
+			self:CalcDoorSeq(b, self:GetDoor2Open(0))
+		elseif b.name == "obs_prop1" then
+			b.CMDL:SetRenderOrigin(self:CalcObstaclePos1())
+		elseif b.name == "obs_prop2" then
+			b.CMDL:SetRenderOrigin(self:CalcObstaclePos2())
+		end
+	end
+end
+
+function DREAMS:RenderRooms(ply, drawall)
+	Dreams.Meta.RenderRooms(self, ply, drawall)
+	if ply.DreamRoom.name == "pd1" then
+		self.MoveEffect = (self.MoveEffect or 0) + FrameTime() * 0.01
+		self.Rooms["pd1"].CMDL:SetSequence("moving")
+		self.Rooms["pd1"].CMDL:SetCycle(self.MoveEffect)
+	else
+		self.MoveEffect = 0
+	end
 end
 
 function DREAMS:SetupFog(ply)
-	local name = ply.DreamRoom and ply.DreamRoom.name
+	local name = ply.DreamRoom.name
 	render.FogStart(5)
-	render.FogEnd((name == "throneroom" or name == "exit") and 230 or 150)
+	render.FogEnd(150)
 	render.FogMaxDensity(1)
-	if name == "throneroom" or name == "fakeout" or name == "4hallway" or name == "exit" then
+	if name == "pd2" or name == "pd1" then
 		render.FogColor(0, 0, 0)
-	elseif name == "coffins" then
-		render.FogEnd(300)
-		render.FogColor(27, 27, 27)
+		if name == "pd1" then
+			render.FogEnd(230 - ply:GetDreamPos():Distance(self.Marks["pd_8center"].pos) / 2)
+		end
+	elseif name == "pd4" then
+		render.FogMaxDensity(0.90)
+		render.FogColor(10, 46, 36, 124)
+		render.FogEnd(150)
 	else
 		render.FogColor(3, 17, 12)
 	end
 	render.FogMode(MATERIAL_FOG_LINEAR)
 	return true
-end
-
-function DREAMS:DrawSprite(mats, pos, size)
-	render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD )
-	render.SetMaterial(mats)
-	local lpos = LocalPlayer():GetDreamPos() + height
-	local dist = lpos:Distance(pos)
-	if dist < 320 then
-		pos = pos + (pos - lpos):GetNormalized() * math.max(-dist, -10)
-		render.DrawSprite(pos, size / dist * 10, size / dist * 10, color_white)
-	else
-		pos = pos + (pos - lpos):GetNormalized() * (-dist + 70)
-		render.DrawSprite(pos, size / dist * 10, size / dist * 10, color_white)
-	end
-	render.OverrideBlend(false)
-	//render.DrawWireframeSphere(pos, 3, 3, 3, Color(255, 0, 0), false)
-end
-
-function DREAMS:TPToRoom(ply, room)
-	room = self.Rooms[room]
-	local tp_pos, tp_ang = room.offset + room.tp_pos, room.tp_ang
-	ply:SetDreamPos(tp_pos)
-	ply:SetAbsVelocity(vector_origin)
-	if tp_ang then ply:SetEyeAngles(tp_ang) end
-end
-
-if SERVER then
-	function DREAMS:Think(ply)
-		local room = ply.DreamRoom
-		local ply_table = ply:GetTable()
-		if not room then return end
-		local t = room.name
-		local rorg = ply:GetDreamPos() - room.offset
-		if rorg.z < -500 then
-			ply:Kill()
-			return
-		end
-
-		if not ply_table.PD_DMGTIME or ply_table.PD_DMGTIME < CurTime() then // its damage time
-			ply:TakeDamage(1)
-			if t == "throneroom" then
-				ply_table.PD_DMGTIME = CurTime() + 1 / 6
-			else
-				ply_table.PD_DMGTIME = CurTime() + 1
-			end
-		end
-
-		if t == "8hallway" then
-			if rorg:DistToSqr(Vector(0, 0, -184)) > 600 ^ 2 then
-				math.randomseed(ply:Health() + CurTime())
-				local rand = math.random(1, 10)
-				if rand == 1 then
-					self:TPToRoom(ply, "exit")
-				elseif rand == 2 or rand == 3 then
-					self:TPToRoom(ply, "fakeout")
-				elseif rand == 4 or rand == 5 or rand == 7 then
-					self:TPToRoom(ply, "4hallway")
-				elseif rand == 6 or rand == 8 then
-					self:TPToRoom(ply, "throneroom")
-				elseif rand == 9 or rand == 10 then
-					ply:Kill()
-				end
-			end
-		elseif t == "4hallway" then
-			if rorg:DistToSqr(Vector(0, 0, -184)) > 400 ^ 2 then
-				math.randomseed(ply:Health() + CurTime())
-				local rand = math.random(1, 4)
-				if rand == 1 then
-					self:TPToRoom(ply, "coffins")
-				elseif rand == 2 then
-					self:TPToRoom(ply, "walkway")
-				elseif rand == 3 then
-					self:TPToRoom(ply, "fakeout")
-				elseif rand == 4 then
-					self:TPToRoom(ply, "throneroom")
-				end
-			end
-		elseif t == "walkway" then
-			if rorg:DistToSqr(Vector(1144.457031, -1.187500, 64.000000)) < 20 ^ 2 then
-				self:TPToRoom(ply, "exit")
-			end
-			if self.ObsPos and rorg:DistToSqr(self.ObsPos) < 70 ^ 2 and ply:Alive() then
-				ply:Kill()
-			end
-		elseif t == "throneroom" then
-			if ply:KeyDown(IN_DUCK) then
-				self:TPToRoom(ply, "walkway")
-			end
-
-			ply.PD106MSG = ply.PD106MSG or CurTime() + 3
-			if ply.PD106MSG < CurTime() then
-				ply:ChatPrint("KNEEL")
-				ply.PD106MSG = CurTime() + 0.5
-			end
-		elseif t == "exit" then
-			if rorg:DistToSqr(Vector(290.714844, 7.031250, -80.011719)) < 15 ^ 2 then
-				pd106.ExitPD(ply)
-			end
-		elseif t == "coffins" then
-			if rorg:DistToSqr(Vector(205.765625, 182.507812, -169.50000)) < 30 ^ 2 then
-				math.randomseed(ply:Health() + CurTime())
-				local rand = math.random(1, 4)
-				if rand == 1 then
-					self:TPToRoom(ply, "8hallway")
-				elseif rand == 3 or rand == 2 then
-					self:TPToRoom(ply, "fakeout")
-				elseif rand == 4 then
-					self:TPToRoom(ply, "throneroom")
-				end
-			end
-		end
-	end
-
-	function DREAMS:ThinkSelf()
-		self.ObsPos = self:CalcObstaclePos()
-	end
-
-	function DREAMS:Start(ply)
-		Dreams.Meta.Start(self, ply)
-		self:TPToRoom(ply, "8hallway")
-	end
-else
-	function DREAMS:Start(ply)
-		Dreams.Meta.Start(self, ply)
-		RunConsoleCommand("stopsound")
-
-		timer.Simple(0.2, function()
-			ply:EmitSound("scp106pd/ambience.wav", 75, 100, 0.3)
-		end)
-	end
-
-	function DREAMS:End(ply)
-		Dreams.Meta.End(self, ply)
-		ply:StopSound("scp106pd/ambience.wav")
-	end
-
-	local lastroom
-	function DREAMS:Think(ply)
-		local room = ply.DreamRoom
-		if lastroom ~= room then
-			ply:EmitSound("scp106pd/laugh.wav")
-			flicker = CurTime() + 0.7
-			lastroom = room
-		end
-
-		if not room then return end
-		if room.name == "walkway" then
-			local rorg = ply:GetDreamPos() - room.offset
-			if not self.PDHitSound and self.ObsPos and rorg:DistToSqr(self.ObsPos) < 120 ^ 2 and not ply:Alive() then
-				ply:EmitSound("scp106pd/hit.wav")
-				self.PDHitSound = true
-			elseif ply:Alive() then
-				self.PDHitSound = nil
-			end
-		elseif room.name == "8hallway" then
-			if not self.PDHitSound and not ply:Alive() then
-				ply:EmitSound("scp106pd/laugh.wav")
-				self.PDHitSound = true
-			elseif ply:Alive() then
-				self.PDHitSound = nil
-			end
-		end
-	end
 end
