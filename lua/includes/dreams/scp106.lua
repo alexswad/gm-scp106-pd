@@ -16,11 +16,12 @@ DREAMS.Triggers = {}
 DREAMS.Entities = {}
 
 function DREAMS:StartMove(ply, mv, cmd)
-	local speed
+	local speed, jump
 	if ply.DreamRoom.name == "pd4" then
 		speed = 8
+		jump = 50
 	end
-	Dreams.Meta.StartMove(self, ply, mv, cmd, speed)
+	Dreams.Meta.StartMove(self, ply, mv, cmd, speed, jump)
 end
 -- DREAMS.StartMove = DREAMS.StartMoveFly
 
@@ -41,7 +42,7 @@ add("pd4", Vector(1500, -3000))
 
 DREAMS.MoveSpeed = 5
 DREAMS.ShiftSpeed = 13
-DREAMS.JumpPower = 50
+DREAMS.JumpPower = 200
 DREAMS.Gravity = 500
 DREAMS.Debug = 0
 
@@ -81,6 +82,7 @@ function DREAMS:Teleport(ply, mark)
 	if mark.angles then
 		ply:SetEyeAngles(mark.angles)
 	end
+	ply.S106_HasBeen[mark] = true
 	ply.DREAMS_FDGrace = CurTime() + 2
 end
 
@@ -138,7 +140,11 @@ if SERVER then
 			elseif rand == 4 or rand == 5 or rand == 7 then
 				self:Teleport(ply, "pd_4hallway")
 			elseif rand == 6 or rand == 8 or rand == 10 then
-				self:Teleport(ply, "pd_pillars")
+				if ply.S106_HasBeen["pd_pillars"] then
+					self:Teleport(ply, "pd_exit")
+				else
+					self:Teleport(ply, "pd_pillars")
+				end
 			elseif rand == 9 then
 				ply:Kill()
 			end
@@ -166,7 +172,11 @@ if SERVER then
 				elseif rand == 2 then
 					self:Teleport(ply, "pd_trick")
 				elseif rand == 3 or rand == 4 or rand == 5 then
-					self:Teleport(ply, "pd_pillars")
+					if ply.S106_HasBeen["pd_pillars"] then
+						self:Teleport(ply, "pd_exit")
+					else
+						self:Teleport(ply, "pd_pillars")
+					end
 				end
 			end
 
@@ -207,6 +217,11 @@ if SERVER then
 		local dmg = math.max(0, speed * 0.06)
 		return dmg > 40 and dmg
 	end
+
+	function DREAMS:Start(ply)
+		Dreams.Meta.Start(self, ply)
+		ply.S106_HasBeen = {}
+	end
 end
 
 --------------------------------------------
@@ -214,6 +229,68 @@ if SERVER then return end
 
 local bob = 0
 local bd = false
+local flicker = 0
+
+local mat = Material("sprites/glow02")
+local mdl106
+local pillar_time = 0
+local chase
+local spot = 0
+function DREAMS:DrawPillar106(ply)
+	if pillar_time == 0 then
+		pillar_time = CurTime()
+	end
+	local time = CurTime() - pillar_time
+
+	if not IsValid(mdl106) then
+		mdl106 = ClientsideModelSafe("models/cpthazama/106_old.mdl")
+		mdl106:SetNoDraw(true)
+		mdl106:ResetSequence("walk")
+	end
+	local pos
+	if time < 10 then
+		spot = 1
+		pos = self.Marks["scp1"].pos
+	elseif time < 20 then
+		if spot ~= 2 then
+			flicker = CurTime() + 0.4
+		end
+		pos = self.Marks["scp2"].pos
+		spot = 2
+	elseif time < 30 then
+		if spot ~= 3 then
+			flicker = CurTime() + 0.4
+		end
+		pos = self.Marks["scp3"].pos
+		spot = 3
+	else
+		if spot ~= 4 then
+			flicker = CurTime() + 0.4
+		end
+		chase = true
+		spot = 4
+	end
+
+	if not chase then
+		mdl106:SetPos(pos)
+		mdl106:DrawModel()
+		mdl106:SetCycle(0.2)
+		local face = (ply:GetDreamPos() - pos):Angle()
+		mdl106:SetAngles(Angle(0, face.y, 0))
+
+		cam.IgnoreZ(true)
+		pos = pos + Vector(0, 0, 64) - face:Forward() * 10
+		self:DrawSprite(mat, pos + face:Right() * 3, 20)
+		self:DrawSprite(mat, pos + face:Right() * -3, 20)
+		cam.IgnoreZ(false)
+	end
+end
+
+function DREAMS:Start()
+	flicker = 0
+	pillar_time = 0
+end
+
 
 local height = Vector(0, 0, 64)
 local theight = Vector(0, 0, 48)
@@ -264,7 +341,6 @@ function DREAMS:DrawSprite(mats, pos, size)
 end
 
 local pd_skybox
-local mat = Material("sprites/glow02")
 local plane = Material("scp106/pd_plane")
 local plane_eye = Material("scp106/pd_planeeye")
 local plane_eye_middle = Material("scp106/pd_planeeye_middle")
@@ -291,6 +367,8 @@ function DREAMS:Draw(ply, rt)
 		local lookat = ((ply:GetDreamPos() + height) - pos):Angle()
 		self:DrawSprite(mat, pos + lookat:Right() * 2.5, 7)
 		self:DrawSprite(mat, pos + lookat:Right() * -2.5, 7)
+	elseif ply.DreamRoom.name == "pd3" then
+		self:DrawPillar106(ply)
 	elseif ply.DreamRoom.name == "pd4" then
 		local fog = render.GetFogMode()
 		render.FogMode(MATERIAL_FOG_NONE)
@@ -309,7 +387,6 @@ function DREAMS:Draw(ply, rt)
 	DrawMotionBlur(0.1, 0.5, 0.08)
 end
 
-local flicker = 0
 local lastpos
 local kneel = Material("scp106/kneel")
 function DREAMS:DrawHUD(ply, w, h)
@@ -410,7 +487,6 @@ function DREAMS:SetupFog(ply)
 		render.FogColor(10, 46, 36, 124)
 	elseif name == "pd3" then
 		render.FogColor(3, 17, 12)
-		print(math.min(20, 1 / math.abs(ply:EyeAngles().x) * 100))
 		render.FogEnd(150 * math.min(15, 1 / math.abs(ply:EyeAngles().x) * 100))
 	end
 	render.FogMode(MATERIAL_FOG_LINEAR)
