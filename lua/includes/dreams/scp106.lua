@@ -3,6 +3,8 @@ local math_cos = math.cos
 local math_abs = math.abs
 local IsValid = IsValid
 local Vector = Vector
+local custom_motionblur = include("scp106/blur.lua")
+if SERVER then include("scp106/pd106.lua") end
 
 if not DREAMS then -- autorefresh fix
 	Dreams.LoadDreams()
@@ -12,15 +14,15 @@ end
 DREAMS.Marks = {}
 DREAMS.Triggers = {}
 DREAMS.Entities = {}
-DREAMS.StartMove = DREAMS.StartMoveFly
 
 function DREAMS:StartMove(ply, mv, cmd)
 	local speed
 	if ply.DreamRoom.name == "pd4" then
-		speed = 7
+		speed = 8
 	end
 	Dreams.Meta.StartMove(self, ply, mv, cmd, speed)
 end
+-- DREAMS.StartMove = DREAMS.StartMoveFly
 
 local function add(mdl, offset, mdl_lighting, lighting)
 	local room = DREAMS:AddRoom(mdl, nil, "data/dreams/" .. mdl .. ".dat", offset)
@@ -37,12 +39,11 @@ add("pd2", Vector(3000, 3000, 10))
 add("pd3", Vector(-2500, -3000, -1400), nil, {0.1, 0.2, 0.1})
 add("pd4", Vector(1500, -3000))
 
-DREAMS.MoveSpeed = 50
-DREAMS.ShiftSpeed = 130
+DREAMS.MoveSpeed = 5
+DREAMS.ShiftSpeed = 13
 DREAMS.JumpPower = 50
 DREAMS.Gravity = 500
-DREAMS.Debug = 1
-
+DREAMS.Debug = 0
 
 function DREAMS:CalcObstaclePos1()
 	local d = CurTime() * 120 % 720
@@ -56,14 +57,14 @@ function DREAMS:CalcObstaclePos2()
 	return self.Marks["obs2"].pos + Vector(0, dir < 0 and 170 * 2 or 0, 0) - Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Right() * 170
 end
 
-local dist = 5000
+local dist = 9000
 local b_eye, v_eye
 function DREAMS:CalcPlane()
-	local d = CurTime() * 20 % 720
-	local t = CurTime() * 20 % 360
+	local d = CurTime() * 22 % 720
+	local t = CurTime() * 22 % 360
 	local dir = d > 360 and -1 or 1
 	b_eye = math_abs(t / 360 * dist - dist / 2) < 1600
-	v_eye = Vector((-dist / 2 + dist * t / 360) * dir, 0, 250) + self.Rooms["pd4"].offset
+	v_eye = Vector((-dist / 2 + dist * t / 360) * dir, 0, 400) + self.Rooms["pd4"].offset
 	return v_eye, dir, b_eye
 end
 
@@ -72,14 +73,15 @@ function DREAMS:CalcPD1Eyes()
 	return self.Marks["pd_8center"].pos + Angle(0, t, 80):Forward() * 900
 end
 
-
 ----------------------------------------------------
 function DREAMS:Teleport(ply, mark)
 	mark = self.Marks[mark]
+	if not mark.pos then mark = table.Random(mark) end
 	ply:SetDreamPos(mark.pos)
 	if mark.angles then
 		ply:SetEyeAngles(mark.angles)
 	end
+	ply.DREAMS_FDGrace = CurTime() + 2
 end
 
 function DREAMS:InTrigger(ply, trigger)
@@ -114,8 +116,14 @@ if SERVER then
 		else
 			self.Entities["door2"].phys.Disabled = nil
 		end
+
+		if self.TrickDoorReset < CurTime() then
+			if self:GetDoor2Open(0) ~= 0 then self:SetDoor2Open(0) end
+			if self:GetDoor1Open(0) ~= 0 then self:SetDoor1Open(0) end
+		end
 	end
 
+	DREAMS.TrickDoorReset = 0
 	function DREAMS:Think(ply)
 		local room = ply.DreamRoom
 		local name = room.name
@@ -135,11 +143,49 @@ if SERVER then
 				ply:Kill()
 			end
 		elseif name == "pd2" then
+			if self:InTrigger(ply, "tp_throneroom") then
+				self:Teleport(ply, "pd_throneroom")
+			end
 
+			if self:InTrigger(ply, "trick_trigger") then
+				self.TrickDoorReset = CurTime() + 3
+			end
+
+			if self:InTrigger(ply, "fallgrace") then
+				ply.DREAMS_FDGrace = CurTime() + 2
+			end
+
+			if self:InTrigger(ply, "throneroom") and ply:KeyDown(IN_DUCK) then
+				self:Teleport(ply, "pd_trench")
+			end
+
+			if self:InTrigger(ply, "random") then
+				local rand = math.random(1, 5)
+				if rand == 1 then
+					self:Teleport(ply, "pd_exit")
+				elseif rand == 2 then
+					self:Teleport(ply, "pd_trick")
+				elseif rand == 3 or rand == 4 or rand == 5 then
+					self:Teleport(ply, "pd_pillars")
+				end
+			end
+
+			if self:InTrigger(ply, "exit") then
+				pd106.ExitPD(ply)
+			end
 		elseif name == "pd3" then
-
+			if self:InTrigger(ply, "exit_pillars") then
+				local rand = math.random(1, 3)
+				if rand == 1 then
+					self:Teleport(ply, "pd_trick")
+				elseif rand == 2 or rand == 3 then
+					self:Teleport(ply, "pd_exit")
+				end
+			end
 		elseif name == "pd4" then
-			
+			if self:InTrigger(ply, "exit_trench") then
+				self:Teleport(ply, "pd_exit")
+			end
 		end
 	end
 
@@ -155,6 +201,12 @@ if SERVER then
 			end
 		end
 	end
+
+	function DREAMS:GetFallDamage(ply, speed)
+		if ply.DREAMS_FDGrace and ply.DREAMS_FDGrace > CurTime() then return false end
+		local dmg = math.max(0, speed * 0.06)
+		return dmg > 40 and dmg
+	end
 end
 
 --------------------------------------------
@@ -165,6 +217,7 @@ local bd = false
 
 local height = Vector(0, 0, 64)
 local theight = Vector(0, 0, 48)
+local planegrace = 0
 function DREAMS:CalcView(ply, view)
 	local ang = ply:EyeAngles()
 	local cos = math_cos(bob)
@@ -185,8 +238,16 @@ function DREAMS:CalcView(ply, view)
 	end
 	view.angles = ang
 	if ply.DreamRoom.name == "pd4" then
-		if b_eye and not self:InTrigger(ply, "safezone") then ply:SetEyeAngles((v_eye - ply:GetDreamPos()):Angle()) end
-		view.origin = ply:GetDreamPos() + theight
+		if b_eye and not self:InTrigger(ply, "safezone") and planegrace < CurTime() then
+			local pdist = v_eye - ply:GetDreamPos()
+			local dir = pdist:Angle()
+			pdist = 1 / pdist:Distance(vector_origin) * 500
+
+			view.origin = ply:GetDreamPos() + theight + dir:Right() * math.random(1, 3) * pdist + dir:Up() * math.random(1, 3) * pdist
+			ply:SetEyeAngles(dir)
+		else
+			view.origin = ply:GetDreamPos() + theight
+		end
 	else
 		view.origin = ply:GetDreamPos() + height
 	end
@@ -211,7 +272,7 @@ function DREAMS:Draw(ply, rt)
 	if not IsValid(pd_skybox) then
 		pd_skybox = ClientsideModelSafe("models/dreams/skybox.mdl")
 		pd_skybox:SetNoDraw(true)
-		pd_skybox:SetModelScale(-10)
+		pd_skybox:SetModelScale(-50)
 	end
 
 	render.SuppressEngineLighting(true)
@@ -236,20 +297,28 @@ function DREAMS:Draw(ply, rt)
 		local pos, dir, eye = self:CalcPlane()
 		render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_MIN, BLEND_SRC_COLOR, BLEND_DST_COLOR, BLENDFUNC_MAX )
 		render.SetMaterial(eye and plane_eye or plane)
-		render.DrawQuadEasy(pos, Vector(0, 0, -1), 5000, 5000, Color(255, 255, 255), dir == -1 and 0 or 180)
+		render.DrawQuadEasy(pos, Vector(0, 0, -1), 7000, 7000, Color(255, 255, 255), dir == -1 and 0 or 180)
 		render.SetMaterial(plane_eye_middle)
 		render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD )
-		if eye then render.DrawQuadEasy(pos, Vector(0, 0, -1), 5000, 5000, Color(255, 255, 255), dir == -1 and 0 or 180) end
+		if eye then render.DrawQuadEasy(pos, Vector(0, 0, -1), 7000, 7000, Color(255, 255, 255), dir == -1 and 0 or 180) end
 		render.OverrideBlend(false)
 		render.FogMode(fog)
 	end
 
+	custom_motionblur(0.05, 0.2, 0.01)
 	DrawMotionBlur(0.1, 0.5, 0.08)
 end
 
-local flicker
+local flicker = 0
+local lastpos
 local kneel = Material("scp106/kneel")
 function DREAMS:DrawHUD(ply, w, h)
+	if flicker < CurTime() and lastpos and lastpos:DistToSqr(ply:GetDreamPos()) > 150 ^ 2 then
+		flicker = CurTime() + 0.8
+		planegrace = CurTime() + 4
+	end
+	lastpos = ply:GetDreamPos()
+
 	if flicker and flicker > CurTime() then
 		surface.SetDrawColor(0, 0, 0, 255 * ((flicker + 0.4) - CurTime()))
 		surface.DrawRect(0, 0, ScrW(), ScrH())
@@ -333,13 +402,16 @@ function DREAMS:SetupFog(ply)
 		render.FogColor(0, 0, 0)
 		if name == "pd1" then
 			render.FogEnd(230 - ply:GetDreamPos():Distance(self.Marks["pd_8center"].pos) / 2)
+		elseif self:InTrigger(ply, "throneroom") then
+			render.FogEnd(400)
 		end
 	elseif name == "pd4" then
 		render.FogMaxDensity(0.90)
 		render.FogColor(10, 46, 36, 124)
-		render.FogEnd(150)
-	else
+	elseif name == "pd3" then
 		render.FogColor(3, 17, 12)
+		print(math.min(20, 1 / math.abs(ply:EyeAngles().x) * 100))
+		render.FogEnd(150 * math.min(15, 1 / math.abs(ply:EyeAngles().x) * 100))
 	end
 	render.FogMode(MATERIAL_FOG_LINEAR)
 	return true
