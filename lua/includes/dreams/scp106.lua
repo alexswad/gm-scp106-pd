@@ -27,7 +27,7 @@ end
 -- DREAMS.StartMove = DREAMS.StartMoveFly
 
 local function add(mdl, offset, mdl_lighting, lighting)
-	local room = DREAMS:AddRoom(mdl, nil, "data/dreams/" .. mdl .. ".dat", offset)
+	local room = DREAMS:AddRoom(mdl, nil, "data_static/dreams/106/" .. mdl .. ".dat", offset)
 	room.MdlLighting = mdl_lighting or lighting
 	room.Lighting = lighting
 	table.Merge(DREAMS.Marks, room.marks or {})
