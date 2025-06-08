@@ -31,7 +31,16 @@ function pd106.PutInPD(ply, puddle)
 		puddle = ents.Create("ent_106pd_puddle")
 		puddle:SetPos(ply:GetPos())
 		puddle:Spawn()
+		puddle.PDCreated = true
 	end
+
+	local puddle_ent = ply.PDOutPuddle
+	if IsValid(puddle_ent) and not puddle_ent.Closing and puddle.PDCreated and puddle ~= puddle_ent then
+		puddle_ent:SetClosing(CurTime() - 1)
+		SafeRemoveEntityDelayed(puddle_ent, 15)
+		puddle_ent.Closing = true
+	end
+
 	ply.PDOutPos = ply:GetPos()
 	ply.PDOutPuddle = puddle
 
@@ -69,6 +78,7 @@ function pd106.PutNPCInPD(ent, puddle)
 		puddle = ents.Create("ent_106pd_puddle")
 		puddle:SetPos(ent:GetPos())
 		puddle:Spawn()
+		puddle.PDCreated = true
 	end
 
 	ent:SetMoveType(MOVETYPE_NONE)
@@ -88,21 +98,46 @@ function pd106.PutNPCInPD(ent, puddle)
 	end)
 end
 
+function pd106.ExitPDSWEP(ply)
+	if timer.Exists(ply:SteamID() .. "_106PD") or not ply:IsDreaming() then return end
+	local start, time = ply:GetDreamPos(), CurTime()
 
-function pd106.ExitPD(ply, trick)
+	local name = ply:SteamID() .. "_106PD"
+	timer.Create(name, 0, 0, function()
+		if not IsValid(ply) then return end
+		ply:Freeze(true)
+		ply:SetDreamPos(start - Vector(0, 0, 40 * (CurTime() - time)))
+		ply:SetAbsVelocity(vector_origin)
+	end)
+
+	timer.Simple(2, function()
+		timer.Remove(name)
+		if not IsValid(ply) then return end
+
+		pd106.ExitPD(ply, false, true)
+	end)
+end
+
+
+function pd106.ExitPD(ply, trick, dontclose)
 	if timer.Exists(ply:SteamID() .. "_106PD") then return end
-	ply:EmitSound("scp106pd/decay.wav")
 
 	ply:SetMoveType(MOVETYPE_FLY)
 	ply:Freeze(true)
 	ply:SetDream(0)
 
+	ply:EmitSound("scp106pd/decay.wav")
+
 	local start, time = (ply.PDOutPos or ply:GetPos()) - Vector(0, 0, 65), CurTime()
 	local ent = ply.PDOutPuddle
 	if IsValid(ent) then
-		ent:SetClosing(CurTime())
-		SafeRemoveEntityDelayed(ent, 15)
-		ent.Closing = true
+		if not dontclose and ent.PDCreated then
+			ent:SetClosing(CurTime())
+			SafeRemoveEntityDelayed(ent, 15)
+			ent.Closing = true
+		else
+			ent.PuddleGrace = CurTime() + 12
+		end
 	end
 
 	local name = ply:SteamID() .. "_106PD"

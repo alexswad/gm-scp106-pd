@@ -1,5 +1,5 @@
 "UnlitGeneric"
 {
-	"$basetexture" "models/scp106/rooms/cracks"
+	"$basetexture" "scp106/cracks"
 	"$translucent" 1
 }

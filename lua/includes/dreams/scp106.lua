@@ -14,10 +14,11 @@ end
 DREAMS.Marks = {}
 DREAMS.Triggers = {}
 DREAMS.Entities = {}
+DREAMS.Debug = 1
 
 function DREAMS:StartMove(ply, mv, cmd)
 	local speed, jump
-	if ply.DreamRoom.name == "pd4" then
+	if ply.DreamRoom and ply.DreamRoom.name == "pd4" then
 		speed = 8
 		jump = 50
 	end
@@ -83,7 +84,8 @@ function DREAMS:Teleport(ply, mark)
 		ply:SetEyeAngles(mark.angles)
 	end
 	ply.S106_HasBeen[mark] = true
-	ply.DREAMS_FDGrace = CurTime() + 2
+	ply.DREAMS_FDGrace = CurTime() + 3
+	ply.S106_Ignore = CurTime() + 3
 end
 
 function DREAMS:InTrigger(ply, trigger)
@@ -106,6 +108,7 @@ function DREAMS:SetupDataTables()
 end
 
 if SERVER then
+	local obs1, obs2
 	function DREAMS:ThinkSelf()
 		if self:GetDoor1Open(0) ~= 0 and CurTime() - self:GetDoor1Open(0) > 2 then
 			self.Entities["door1"].phys.Disabled = true
@@ -123,18 +126,30 @@ if SERVER then
 			if self:GetDoor2Open(0) ~= 0 then self:SetDoor2Open(0) end
 			if self:GetDoor1Open(0) ~= 0 then self:SetDoor1Open(0) end
 		end
+		obs1 = self:CalcObstaclePos1()
+		obs2 = self:CalcObstaclePos2()
+		self:CalcPlane()
 	end
 
+	DREAMS:AddNetSender("obs_death")
 	DREAMS.TrickDoorReset = 0
 	function DREAMS:Think(ply)
 		local room = ply.DreamRoom
 		local name = room.name
 		local pos = ply:GetDreamPos()
-		if name == "pd1" and pos:DistToSqr(self.Marks["pd_8center"].pos) > 360 ^ 2 then
+		local immune = ply:HasWeapon("swep_106_pd")
+		local ndmg = 1
+
+		if pos.z < -4000 then
+			ply:Kill()
+			return
+		end
+
+		if name == "pd1" and pos:DistToSqr(self.Marks["pd_8center"].pos) > 360 ^ 2 and (not ply.S106_Ignore or ply.S106_Ignore < CurTime()) then
 			math.randomseed(ply:Health() + CurTime())
 			local rand = math.random(1, 10)
 			if rand == 1 then
-				self:Teleport(ply, "pd_exit")
+				self:Teleport(ply, "pd_8hallway")
 			elseif rand == 2 or rand == 3 then
 				self:Teleport(ply, "pd_trick")
 			elseif rand == 4 or rand == 5 or rand == 7 then
@@ -161,8 +176,12 @@ if SERVER then
 				ply.DREAMS_FDGrace = CurTime() + 2
 			end
 
-			if self:InTrigger(ply, "throneroom") and ply:KeyDown(IN_DUCK) then
-				self:Teleport(ply, "pd_trench")
+			if self:InTrigger(ply, "throneroom") then
+				ndmg = 4
+				if ply:KeyDown(IN_DUCK) then
+					ply:SetHealth(math.max(ply:Health(), 40))
+					self:Teleport(ply, "pd_trench")
+				end
 			end
 
 			if self:InTrigger(ply, "random") then
@@ -183,6 +202,16 @@ if SERVER then
 			if self:InTrigger(ply, "exit") then
 				pd106.ExitPD(ply)
 			end
+
+			if pos:DistToSqr(obs1) < 100 ^ 2 and ply:Alive() then
+				ply:Kill()
+				self:SendCommand("obs_death", ply)
+			end
+
+			if pos:DistToSqr(obs2) < 100 ^ 2 and ply:Alive() then
+				ply:Kill()
+				self:SendCommand("obs_death", ply)
+			end
 		elseif name == "pd3" then
 			if self:InTrigger(ply, "exit_pillars") then
 				local rand = math.random(1, 3)
@@ -196,6 +225,21 @@ if SERVER then
 			if self:InTrigger(ply, "exit_trench") then
 				self:Teleport(ply, "pd_exit")
 			end
+
+			if not ply.S106_LastDmg or ply.S106_LastDmg < CurTime() then
+				if b_eye and not self:InTrigger(ply, "safezone") then
+					ply:TakeDamage(1)
+					ply.S106_LastDmg = CurTime() + 0.3
+				else
+					ply:TakeDamage(1)
+					ply.S106_LastDmg = CurTime() + 2
+				end
+			end
+		end
+
+		if not ply.S106_LastDmg or ply.S106_LastDmg < CurTime() then
+			ply:TakeDamage(ndmg)
+			ply.S106_LastDmg = CurTime() + 1
 		end
 	end
 
@@ -221,15 +265,28 @@ if SERVER then
 	function DREAMS:Start(ply)
 		Dreams.Meta.Start(self, ply)
 		ply.S106_HasBeen = {}
+		self:Teleport(ply, "pd_8hallway")
+		ply:SetActiveWeapon(ply:GetWeapon("swep_106_pd") or NULL)
 	end
+end
+
+function DREAMS:SwitchWeapon(ply, old, new)
+	if IsValid(new) and new:GetClass() ~= "swep_106_pd" then return true end
 end
 
 --------------------------------------------
 if SERVER then return end
 
+DREAMS:AddNetReceiver("obs_death", function(dream, ply)
+	timer.Simple(0.1, function()
+		ply:EmitSound("scp106pd/hit.wav")
+	end)
+end)
+
 local bob = 0
 local bd = false
 local flicker = 0
+local lastflicker = 0
 
 local mat = Material("sprites/glow02")
 local mdl106
@@ -243,11 +300,12 @@ function DREAMS:DrawPillar106(ply)
 	local time = CurTime() - pillar_time
 
 	if not IsValid(mdl106) then
-		mdl106 = ClientsideModelSafe("models/cpthazama/106_old.mdl")
+		mdl106 = ClientsideModelSafe("models/cpthazama/scp/106_old.mdl")
 		mdl106:SetNoDraw(true)
 		mdl106:ResetSequence("walk")
 	end
 	local pos
+	chase = false
 	if time < 10 then
 		spot = 1
 		pos = self.Marks["scp1"].pos
@@ -279,18 +337,34 @@ function DREAMS:DrawPillar106(ply)
 		mdl106:SetAngles(Angle(0, face.y, 0))
 
 		cam.IgnoreZ(true)
-		pos = pos + Vector(0, 0, 64) - face:Forward() * 10
-		self:DrawSprite(mat, pos + face:Right() * 3, 20)
-		self:DrawSprite(mat, pos + face:Right() * -3, 20)
+		pos = pos + Vector(0, 0, 82)
+		self:DrawSprite(mat, pos + face:Right() * 2.5, 15)
+		self:DrawSprite(mat, pos + face:Right() * -2.5, 15)
 		cam.IgnoreZ(false)
 	end
 end
 
-function DREAMS:Start()
-	flicker = 0
+function DREAMS:Start(ply)
+	self:StopPlaneSound()
 	pillar_time = 0
+	flicker = CurTime() + 5
+	lastflicker = flicker
+
+	timer.Simple(0.5, function()
+		flicker = CurTime() + 0.8
+		ply:EmitSound("scp106pd/ambience.wav", 75, 100, 0.3)
+		ply:EmitSound("scp106pd/laugh.wav")
+	end)
 end
 
+function DREAMS:End(ply)
+	ply:StopSound("scp106pd/ambience.wav")
+	self:StopPlaneSound()
+	timer.Simple(0.1, function()
+		ply:StopSound("scp106pd/ambience.wav")
+		self:StopPlaneSound()
+	end)
+end
 
 local height = Vector(0, 0, 64)
 local theight = Vector(0, 0, 48)
@@ -369,10 +443,13 @@ function DREAMS:Draw(ply, rt)
 		self:DrawSprite(mat, pos + lookat:Right() * -2.5, 7)
 	elseif ply.DreamRoom.name == "pd3" then
 		self:DrawPillar106(ply)
-	elseif ply.DreamRoom.name == "pd4" then
+	end
+
+	if ply.DreamRoom.name == "pd4" then
 		local fog = render.GetFogMode()
 		render.FogMode(MATERIAL_FOG_NONE)
 		local pos, dir, eye = self:CalcPlane()
+		self:CheckPlaneSound()
 		render.OverrideBlend( true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_MIN, BLEND_SRC_COLOR, BLEND_DST_COLOR, BLENDFUNC_MAX )
 		render.SetMaterial(eye and plane_eye or plane)
 		render.DrawQuadEasy(pos, Vector(0, 0, -1), 7000, 7000, Color(255, 255, 255), dir == -1 and 0 or 180)
@@ -381,6 +458,8 @@ function DREAMS:Draw(ply, rt)
 		if eye then render.DrawQuadEasy(pos, Vector(0, 0, -1), 7000, 7000, Color(255, 255, 255), dir == -1 and 0 or 180) end
 		render.OverrideBlend(false)
 		render.FogMode(fog)
+	else
+		self:StopPlaneSound()
 	end
 
 	custom_motionblur(0.05, 0.2, 0.01)
@@ -389,6 +468,7 @@ end
 
 local lastpos
 local kneel = Material("scp106/kneel")
+local playedsound
 function DREAMS:DrawHUD(ply, w, h)
 	if flicker < CurTime() and lastpos and lastpos:DistToSqr(ply:GetDreamPos()) > 150 ^ 2 then
 		flicker = CurTime() + 0.8
@@ -399,11 +479,21 @@ function DREAMS:DrawHUD(ply, w, h)
 	if flicker and flicker > CurTime() then
 		surface.SetDrawColor(0, 0, 0, 255 * ((flicker + 0.4) - CurTime()))
 		surface.DrawRect(0, 0, ScrW(), ScrH())
+		if lastflicker == 0 and flicker ~= lastflicker then
+			ply:EmitSound("scp106pd/laugh.wav")
+		end
+		lastflicker = flicker
+	else
+		lastflicker = 0
 	end
 
 	if self:InTrigger(ply, "throneroom") then
 		local time = CurTime() % 10
 		if time > 1 and time < 1.12 then
+			if not playedsound then
+				ply:EmitSound("scp106pd/Kneel.wav")
+				playedsound = true
+			end
 			surface.SetDrawColor(0, 0, 0)
 			surface.DrawRect(0, 0, ScrW(), ScrH())
 			render.SetMaterial(kneel)
@@ -417,6 +507,8 @@ function DREAMS:DrawHUD(ply, w, h)
 			render.SetMaterial(kneel)
 			render.DrawScreenQuad()
 		end
+	else
+		playedsound = false
 	end
 	Dreams.Meta.DrawHUD(self, ply, w, h)
 end
@@ -479,8 +571,11 @@ function DREAMS:SetupFog(ply)
 		render.FogColor(0, 0, 0)
 		if name == "pd1" then
 			render.FogEnd(230 - ply:GetDreamPos():Distance(self.Marks["pd_8center"].pos) / 2)
-		elseif self:InTrigger(ply, "throneroom") then
-			render.FogEnd(400)
+		else
+			render.FogEnd(200)
+			if self:InTrigger(ply, "throneroom") then
+				render.FogEnd(400)
+			end
 		end
 	elseif name == "pd4" then
 		render.FogMaxDensity(0.90)
@@ -491,4 +586,45 @@ function DREAMS:SetupFog(ply)
 	end
 	render.FogMode(MATERIAL_FOG_LINEAR)
 	return true
+end
+
+function DREAMS:HUDShouldDraw(ply, str)
+	if str == "CHudWeaponSelection" and not ply:HasWeapon("swep_106_pd") then return false end
+end
+
+function DREAMS:CheckPlaneSound()
+	if not self.PlaneSound then
+		self.PlaneSound = CreateSound(LocalPlayer(), "scp106pd/plane_loop.wav")
+		self.PlaneSound:SetSoundLevel(0)
+		self.PlaneSound:PlayEx(0.1, 100)
+
+		timer.Create("106PD_PlaneSound", 11, 0, function()
+			if not self.PlaneSound then
+				timer.Remove("106PD_PlaneSound")
+				return
+			end
+			self.PlaneSound:Stop()
+			timer.Simple(0, function()
+				self.PlaneSound:PlayEx(math.min(0.8, 1000 / LocalPlayer():GetDreamPos():Distance(v_eye)), 100)
+			end)
+		end)
+	end
+
+	if not self.LastSoundUpdate or self.LastSoundUpdate < CurTime() then
+		self.PlaneSound:ChangeVolume(math.min(0.8, 1000 / LocalPlayer():GetDreamPos():Distance(v_eye)))
+		self.LastSoundUpdate = CurTime() + 0.1
+	end
+end
+
+function DREAMS:StopPlaneSound()
+	LocalPlayer():StopSound("scp106pd/plane_loop.wav")
+	timer.Remove("106PD_PlaneSound")
+	if self.PlaneSound then
+		self.PlaneSound:Stop()
+		self.PlaneSound = nil
+	end
+end
+
+function DREAMS:Init()
+	self:StopPlaneSound()
 end

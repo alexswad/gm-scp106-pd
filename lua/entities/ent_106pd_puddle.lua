@@ -2,16 +2,19 @@ AddCSLuaFile()
 
 ENT.Type = "anim"
 ENT.Base = "base_anim"
-ENT.PrintName = "scp106_phys"
+ENT.PrintName = "106 Puddle (Small)"
 ENT.Author = "eskil"
 ENT.RenderGroup = RENDERGROUP_OPAQUE
-ENT.SCP106 = false
+ENT.Category = "Dreams - SCP"
+ENT.Spawnable = true
 
 function ENT:SetupDataTables()
 	self:NetworkVar("Float", 0, "CreationTime")
 	self:NetworkVar("Float", 1, "Closing")
 end
 
+ENT.Size = {Vector(-4, -4, -1), Vector(4, 4, 5)}
+ENT.DrawSize = 160
 function ENT:Initialize()
 	self:SetCreationTime(CurTime())
 	self:DrawShadow(false)
@@ -20,12 +23,15 @@ function ENT:Initialize()
 		self:SetSolid(SOLID_BBOX)
 		self:SetCollisionGroup(COLLISION_GROUP_WORLD)
 		self:SetTrigger(true)
-		self:SetCollisionBounds(Vector(-4, -4, -1), Vector(4, 4, 5))
+		self:SetCollisionBounds(self.Size[1], self.Size[2])
+		self:SetKeyValue("gmod_allowphysgun", "false")
+	else
+		self:SetRenderBounds(self.Size[1] * 20, self.Size[2] * 20)
 	end
 end
 
 function ENT:StartTouch(ply)
-	if self.Closing or not ply:IsPlayer() and not ply:IsNPC() then return end
+	if self.PuddleGrace and self.PuddleGrace > CurTime() or self.Closing or not ply:IsPlayer() and not ply:IsNPC() then return end
 	if ply:IsNPC() then
 		if pd106.class_106[ply:GetClass()] then return end
 		pd106.PutNPCInPD(ply, self)
@@ -34,18 +40,19 @@ function ENT:StartTouch(ply)
 	pd106.PutInPD(ply, self)
 end
 
-local mat = Material("models/scp106/rooms/cracks")
-local mat2 = Material("models/scp106/rooms/puddle")
+local mat = Material("scp106/cracks")
+local mat2 = Material("scp106/puddle")
 function ENT:Draw()
 	self:DrawShadow(false)
 	self:DestroyShadow()
+	local cracksize, drawsize = self.DrawSize - 10, self.DrawSize
 	local size, size2
 	if self:GetClosing() == 0 then
-		size = math.ease.InSine(math.min(1, (CurTime() - self:GetCreationTime() + 0.4) / 2)) * 150
-		size2 = math.ease.InSine(math.min(1, (CurTime() - self:GetCreationTime() + 0.4) / 2) ) * 160
+		size = math.ease.InSine(math.min(1, (CurTime() - self:GetCreationTime() + 0.4) / 2)) * cracksize
+		size2 = math.ease.InSine(math.min(1, (CurTime() - self:GetCreationTime() + 0.4) / 2)) * drawsize
 	else
-		size = math.ease.InSine(math.max(0, (self:GetClosing() - CurTime() + 4) / 2)) * 150
-		size2 = math.ease.InSine(math.max(0, (self:GetClosing() - CurTime() + 4) / 2) ) * 160
+		size = math.ease.InSine(math.Clamp((self:GetClosing() - CurTime() + 4) / 2, 0, 1)) * cracksize
+		size2 = math.ease.InSine(math.Clamp((self:GetClosing() - CurTime() + 4) / 2, 0, 1)) * drawsize
 	end
 
 	render.SetMaterial(mat)
