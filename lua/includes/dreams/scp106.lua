@@ -140,7 +140,7 @@ if SERVER then
 		local immune = ply:HasWeapon("swep_106_pd")
 		local ndmg = 1
 
-		if pos.z < -4000 then
+		if pos.z < -3000 then
 			ply:Kill()
 			return
 		end
@@ -179,7 +179,7 @@ if SERVER then
 			if self:InTrigger(ply, "throneroom") then
 				ndmg = 4
 				if ply:KeyDown(IN_DUCK) then
-					ply:SetHealth(math.max(ply:Health(), 40))
+					ply:SetHealth(math.max(ply:Health(), 60))
 					self:Teleport(ply, "pd_trench")
 				end
 			end
@@ -226,20 +226,15 @@ if SERVER then
 				self:Teleport(ply, "pd_exit")
 			end
 
-			if not ply.S106_LastDmg or ply.S106_LastDmg < CurTime() then
-				if b_eye and not self:InTrigger(ply, "safezone") then
-					ply:TakeDamage(1)
-					ply.S106_LastDmg = CurTime() + 0.3
-				else
-					ply:TakeDamage(1)
-					ply.S106_LastDmg = CurTime() + 2
-				end
+			if b_eye and not self:InTrigger(ply, "safezone") and ply.S106_LastDmg < CurTime() - 0.3 or ply.S106_LastDmg < CurTime() - 3 then
+				ply:TakeDamage(1)
+				ply.S106_LastDmg = CurTime()
 			end
 		end
 
-		if not ply.S106_LastDmg or ply.S106_LastDmg < CurTime() then
+		if not ply.S106_LastDmg or ply.S106_LastDmg < CurTime() and name ~= "pd4" then
 			ply:TakeDamage(ndmg)
-			ply.S106_LastDmg = CurTime() + 1
+			ply.S106_LastDmg = CurTime() + 2
 		end
 	end
 
