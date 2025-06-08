@@ -61,12 +61,21 @@ function SWEP:Reload()
 		local owner = self:GetOwner()
 		owner:EmitSound("scp106pd/laugh.wav")
 		self.NextLaugh = CurTime() + 5
-		owner:SetCollisionGroup(COLLISION_GROUP_PASSABLE_DOOR)
+		local ret = owner:GetCustomCollisionCheck()
+		owner.S106_Laugh = CurTime() + 4
+		owner:SetCustomCollisionCheck(true)
+		owner:CollisionRulesChanged()
 		timer.Simple(5, function()
-			owner:SetCollisionGroup(COLLISION_GROUP_PLAYER)
+			owner:SetCustomCollisionCheck(ret)
+			owner:CollisionRulesChanged()
 		end)
 	end
 end
+
+hook.Add("ShouldCollide", "SCP106_PD_Laugh", function(ent1, ent2)
+	if ent1:IsPlayer() and ent1.S106_Laugh and ent1.S106_Laugh > CurTime() then return false end
+	if ent2:IsPlayer() and ent2.S106_Laugh and ent2.S106_Laugh > CurTime() then return false end
+end)
 
 function SWEP:SecondaryAttack()
 	if not self:GetOwner():IsOnGround() or CLIENT then return end

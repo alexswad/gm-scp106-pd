@@ -141,6 +141,10 @@ if SERVER then
 		local ndmg = 1
 
 		if pos.z < -3000 then
+			if immune then
+				pd106.ExitPDSWEP(ply)
+				return
+			end
 			ply:Kill()
 			return
 		end
@@ -226,13 +230,13 @@ if SERVER then
 				self:Teleport(ply, "pd_exit")
 			end
 
-			if b_eye and not self:InTrigger(ply, "safezone") and ply.S106_LastDmg < CurTime() - 0.3 or ply.S106_LastDmg < CurTime() - 3 then
+			if not immune and (b_eye and not self:InTrigger(ply, "safezone") and ply.S106_LastDmg < CurTime() - 0.3 or ply.S106_LastDmg < CurTime() - 3) then
 				ply:TakeDamage(1)
 				ply.S106_LastDmg = CurTime()
 			end
 		end
 
-		if not ply.S106_LastDmg or ply.S106_LastDmg < CurTime() and name ~= "pd4" then
+		if not immune and (not ply.S106_LastDmg or ply.S106_LastDmg < CurTime()) and name ~= "pd4" then
 			ply:TakeDamage(ndmg)
 			ply.S106_LastDmg = CurTime() + 2
 		end
