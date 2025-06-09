@@ -1,3 +1,5 @@
+AddCSLuaFile("includes/dreams/scp106/blur.lua")
+
 local CurTime = CurTime
 local math_cos = math.cos
 local math_abs = math.abs
