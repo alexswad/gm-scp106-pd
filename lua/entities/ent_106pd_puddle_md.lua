@@ -8,5 +8,5 @@ ENT.RenderGroup = RENDERGROUP_OPAQUE
 ENT.Category = "Dreams - SCP"
 ENT.Spawnable = true
 
-ENT.Size = {Vector(-14, -14, -1), Vector(14, 14, 5)}
-ENT.DrawSize = 230
+ENT.Size = {Vector(-50, -50, -1), Vector(30, 35, 3)}
+ENT.DrawSize = 270

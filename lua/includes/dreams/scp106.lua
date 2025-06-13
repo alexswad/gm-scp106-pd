@@ -16,15 +16,16 @@ end
 DREAMS.Marks = {}
 DREAMS.Triggers = {}
 DREAMS.Entities = {}
-DREAMS.Debug = 1
+DREAMS.Debug = 0
 
 function DREAMS:StartMove(ply, mv, cmd)
-	local speed, jump
+	local speed, jump, grav
 	if ply.DreamRoom and ply.DreamRoom.name == "pd4" then
 		speed = 8
-		jump = 50
+		grav = 200
+		jump = 0
 	end
-	Dreams.Meta.StartMove(self, ply, mv, cmd, speed, jump)
+	Dreams.Meta.StartMove(self, ply, mv, cmd, speed, jump, grav)
 end
 -- DREAMS.StartMove = DREAMS.StartMoveFly
 
@@ -43,8 +44,8 @@ add("pd2", Vector(3000, 3000, 10))
 add("pd3", Vector(-2500, -3000, -1400), nil, {0.1, 0.2, 0.1})
 add("pd4", Vector(1500, -3000))
 
-DREAMS.MoveSpeed = 5
-DREAMS.ShiftSpeed = 13
+DREAMS.MoveSpeed = 10
+DREAMS.ShiftSpeed = 10
 DREAMS.JumpPower = 200
 DREAMS.Gravity = 500
 DREAMS.Debug = 0
@@ -61,13 +62,13 @@ function DREAMS:CalcObstaclePos2()
 	return self.Marks["obs2"].pos + Vector(0, dir < 0 and 170 * 2 or 0, 0) - Angle(0, (dir * d) + (dir < 0 and 180 or 0), 0):Right() * 170
 end
 
-local dist = 9000
+local dist = 10000
 local b_eye, v_eye
 function DREAMS:CalcPlane()
-	local d = CurTime() * 22 % 720
-	local t = CurTime() * 22 % 360
+	local d = CurTime() * 19 % 720
+	local t = CurTime() * 19 % 360
 	local dir = d > 360 and -1 or 1
-	b_eye = math_abs(t / 360 * dist - dist / 2) < 1600
+	b_eye = math_abs(t / 360 * dist - dist / 2) < 2000
 	v_eye = Vector((-dist / 2 + dist * t / 360) * dir, 0, 400) + self.Rooms["pd4"].offset
 	return v_eye, dir, b_eye
 end
@@ -241,6 +242,8 @@ if SERVER then
 		if not immune and (not ply.S106_LastDmg or ply.S106_LastDmg < CurTime()) and name ~= "pd4" then
 			ply:TakeDamage(ndmg)
 			ply.S106_LastDmg = CurTime() + 2
+		elseif immune then
+			ply.S106_LastDmg = 0
 		end
 	end
 
@@ -269,6 +272,10 @@ if SERVER then
 		self:Teleport(ply, "pd_8hallway")
 		ply:SetActiveWeapon(ply:GetWeapon("swep_106_pd") or NULL)
 	end
+
+	DREAMS:AddNetReceiver("106hit", function(dream, ply)
+		ply:Kill()
+	end)
 end
 
 function DREAMS:SwitchWeapon(ply, old, new)
@@ -283,6 +290,7 @@ DREAMS:AddNetReceiver("obs_death", function(dream, ply)
 		ply:EmitSound("scp106pd/hit.wav")
 	end)
 end)
+DREAMS:AddNetSender("106hit")
 
 local bob = 0
 local bd = false
@@ -294,6 +302,7 @@ local mdl106
 local pillar_time = 0
 local chase
 local spot = 0
+local mdcycle = 0
 function DREAMS:DrawPillar106(ply)
 	if pillar_time == 0 then
 		pillar_time = CurTime()
@@ -307,30 +316,39 @@ function DREAMS:DrawPillar106(ply)
 	end
 	local pos
 	chase = false
-	if time < 10 then
+	if time < 13 then
 		spot = 1
 		pos = self.Marks["scp1"].pos
-	elseif time < 20 then
+	elseif time < 26 then
 		if spot ~= 2 then
 			flicker = CurTime() + 0.4
 		end
 		pos = self.Marks["scp2"].pos
 		spot = 2
-	elseif time < 30 then
+	elseif time < 38 then
 		if spot ~= 3 then
 			flicker = CurTime() + 0.4
 		end
 		pos = self.Marks["scp3"].pos
 		spot = 3
-	else
+	elseif spot ~= 5 then
 		if spot ~= 4 then
 			flicker = CurTime() + 0.4
+			local mpos = ply:EyeAngles():Forward()
+			mpos:SetUnpacked(mpos.x, mpos.y, 0)
+			mpos:Mul(500)
+			mpos:Add(ply:GetDreamPos())
+
+			mdl106:SetPos(mpos)
+			timer.Simple(0.1, function()
+				ply:EmitSound("scp106pd/106.wav")
+			end)
 		end
 		chase = true
 		spot = 4
 	end
 
-	if not chase then
+	if not chase and spot ~= 5 then
 		mdl106:SetPos(pos)
 		mdl106:DrawModel()
 		mdl106:SetCycle(0.2)
@@ -342,12 +360,30 @@ function DREAMS:DrawPillar106(ply)
 		self:DrawSprite(mat, pos + face:Right() * 2.5, 15)
 		self:DrawSprite(mat, pos + face:Right() * -2.5, 15)
 		cam.IgnoreZ(false)
+	else
+		local dir = (ply:GetDreamPos() - mdl106:GetPos()):GetNormalized()
+		local face = dir:Angle()
+		mdl106:SetAngles(Angle(0, face.y, 0))
+		mdl106:DrawModel()
+		mdl106:SetCycle(mdcycle)
+		mdl106:SetPos(dir * FrameTime() * 150 + mdl106:GetPos())
+		mdcycle = mdcycle + FrameTime()
+
+		if spot ~= 5 and mdl106:GetPos():DistToSqr(ply:GetPos()) < 20 ^ 2 then
+			self:SendCommand("106hit")
+			timer.Simple(0.1, function()
+				ply:EmitSound("scp106pd/hit.wav")
+			end)
+			spot = 5
+		end
 	end
 end
 
 function DREAMS:Start(ply)
 	self:StopPlaneSound()
 	pillar_time = 0
+	chase = false
+	spot = 0
 	flicker = CurTime() + 5
 	lastflicker = flicker
 
@@ -359,6 +395,7 @@ function DREAMS:Start(ply)
 end
 
 function DREAMS:End(ply)
+	ply:StopSound("scp106pd/106.wav")
 	ply:StopSound("scp106pd/ambience.wav")
 	self:StopPlaneSound()
 	timer.Simple(0.1, function()
@@ -433,6 +470,9 @@ function DREAMS:Draw(ply, rt)
 
 	Dreams.Meta.Draw(self, ply, rt)
 	if ply.DreamRoom.name == "pd1" then
+		spot = 0
+		chase = false
+		pillar_time = 0
 		local pos = self:CalcPD1Eyes() + Vector(0, 0, 60)
 		local lookat = ((ply:GetDreamPos() + height) - pos):Angle()
 		self:DrawSprite(mat, pos + lookat:Right() * 4, 10)
@@ -443,7 +483,7 @@ function DREAMS:Draw(ply, rt)
 		self:DrawSprite(mat, pos + lookat:Right() * 2.5, 7)
 		self:DrawSprite(mat, pos + lookat:Right() * -2.5, 7)
 	elseif ply.DreamRoom.name == "pd3" then
-		self:DrawPillar106(ply)
+		if not ply:HasWeapon("swep_106_pd") then self:DrawPillar106(ply) end
 	end
 
 	if ply.DreamRoom.name == "pd4" then
@@ -481,6 +521,7 @@ function DREAMS:DrawHUD(ply, w, h)
 		surface.SetDrawColor(0, 0, 0, 255 * ((flicker + 0.4) - CurTime()))
 		surface.DrawRect(0, 0, ScrW(), ScrH())
 		if lastflicker == 0 and flicker ~= lastflicker then
+			ply:StopSound("scp106pd/106.wav")
 			ply:EmitSound("scp106pd/laugh.wav")
 		end
 		lastflicker = flicker
@@ -583,7 +624,7 @@ function DREAMS:SetupFog(ply)
 		render.FogColor(10, 46, 36, 124)
 	elseif name == "pd3" then
 		render.FogColor(3, 17, 12)
-		render.FogEnd(150 * math.min(15, 1 / math.abs(ply:EyeAngles().x) * 100))
+		render.FogEnd(190 * math.min(30, 1 / math.abs(ply:EyeAngles().x) * 70))
 	end
 	render.FogMode(MATERIAL_FOG_LINEAR)
 	return true
@@ -598,28 +639,16 @@ function DREAMS:CheckPlaneSound()
 		self.PlaneSound = CreateSound(LocalPlayer(), "scp106pd/plane_loop.wav")
 		self.PlaneSound:SetSoundLevel(0)
 		self.PlaneSound:PlayEx(0.1, 100)
-
-		timer.Create("106PD_PlaneSound", 11, 0, function()
-			if not self.PlaneSound then
-				timer.Remove("106PD_PlaneSound")
-				return
-			end
-			self.PlaneSound:Stop()
-			timer.Simple(0, function()
-				self.PlaneSound:PlayEx(math.min(0.8, 1000 / LocalPlayer():GetDreamPos():Distance(v_eye)), 100)
-			end)
-		end)
 	end
 
 	if not self.LastSoundUpdate or self.LastSoundUpdate < CurTime() then
-		self.PlaneSound:ChangeVolume(math.min(0.8, 1000 / LocalPlayer():GetDreamPos():Distance(v_eye)))
+		self.PlaneSound:ChangeVolume(math.min(0.8, 1000 ^ 2 / LocalPlayer():GetDreamPos():DistToSqr(v_eye)))
 		self.LastSoundUpdate = CurTime() + 0.1
 	end
 end
 
 function DREAMS:StopPlaneSound()
 	LocalPlayer():StopSound("scp106pd/plane_loop.wav")
-	timer.Remove("106PD_PlaneSound")
 	if self.PlaneSound then
 		self.PlaneSound:Stop()
 		self.PlaneSound = nil

@@ -115,6 +115,13 @@ function pd106.ExitPDSWEP(ply)
 		if not IsValid(ply) then return end
 
 		pd106.ExitPD(ply, false, true)
+		if not IsValid(ply.PDOutPuddle) then
+			local puddle = ents.Create("ent_106pd_puddle")
+			puddle:SetPos(ply.PDOutPos)
+			puddle:Spawn()
+			puddle.PDCreated = true
+			puddle.PuddleGrace = CurTime() + 12
+		end
 	end)
 end
 

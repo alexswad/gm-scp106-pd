@@ -7,13 +7,14 @@ ENT.Author = "eskil"
 ENT.RenderGroup = RENDERGROUP_OPAQUE
 ENT.Category = "Dreams - SCP"
 ENT.Spawnable = true
+ENT.PhysgunDisabled = true
 
 function ENT:SetupDataTables()
 	self:NetworkVar("Float", 0, "CreationTime")
 	self:NetworkVar("Float", 1, "Closing")
 end
 
-ENT.Size = {Vector(-4, -4, -1), Vector(4, 4, 5)}
+ENT.Size = {Vector(-20, -20, -1), Vector(6, 6, 3)}
 ENT.DrawSize = 160
 function ENT:Initialize()
 	self:SetCreationTime(CurTime())
@@ -24,7 +25,6 @@ function ENT:Initialize()
 		self:SetCollisionGroup(COLLISION_GROUP_WORLD)
 		self:SetTrigger(true)
 		self:SetCollisionBounds(self.Size[1], self.Size[2])
-		self:SetKeyValue("gmod_allowphysgun", "false")
 	else
 		self:SetRenderBounds(self.Size[1] * 20, self.Size[2] * 20)
 	end
@@ -32,6 +32,8 @@ end
 
 function ENT:StartTouch(ply)
 	if self.PuddleGrace and self.PuddleGrace > CurTime() or self.Closing or not ply:IsPlayer() and not ply:IsNPC() then return end
+	ply:SetPos(self:GetPos())
+	self.PuddleGrace = CurTime() + 1
 	if ply:IsNPC() then
 		if pd106.class_106[ply:GetClass()] then return end
 		pd106.PutNPCInPD(ply, self)
