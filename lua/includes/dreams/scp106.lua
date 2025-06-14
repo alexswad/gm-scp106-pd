@@ -79,14 +79,14 @@ function DREAMS:CalcPD1Eyes()
 end
 
 ----------------------------------------------------
-function DREAMS:Teleport(ply, mark)
-	mark = self.Marks[mark]
+function DREAMS:Teleport(ply, markname)
+	local mark = self.Marks[markname]
 	if not mark.pos then mark = table.Random(mark) end
 	ply:SetDreamPos(mark.pos)
 	if mark.angles then
 		ply:SetEyeAngles(mark.angles)
 	end
-	ply.S106_HasBeen[mark] = true
+	ply.S106_HasBeen[markname] = true
 	ply.DREAMS_FDGrace = CurTime() + 3
 	ply.S106_Ignore = CurTime() + 3
 end
